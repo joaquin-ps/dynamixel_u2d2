@@ -1,6 +1,6 @@
 # U2D2 Interface Documentation
 
-A clean, high-level interface for controlling Dynamixel motors through the U2D2 communication bridge, with support for both individual motor operations and efficient bulk operations.
+A high-level interface for controlling Dynamixel motors through the U2D2 communication bridge, with support for both individual motor operations and efficient bulk operations.
 
 Tested on: Ubuntu 22.04
 
