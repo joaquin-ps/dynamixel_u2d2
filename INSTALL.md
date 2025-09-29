@@ -1,26 +1,32 @@
 # Installation Guide
 
-## Local Development Installation
+## Prerequisites
 
-### 1. Clone the Repository
+- Python 3.7 or higher
+- Linux (tested on Ubuntu 22.04)
+
+## Installation Methods
+
+### Method 1: Development Installation (Recommended)
+
 ```bash
+# Clone the repository
 git clone <your-repo-url>
 cd dynamixel_u2d2
-```
 
-### 2. Install in Development Mode
-```bash
+# Install in development mode
 pip install -e .
 ```
 
 This installs the package in "editable" mode, so changes to the source code are immediately available.
 
-### 3. Install with Development Dependencies (Optional)
+### Method 2: Dependencies Only
+
 ```bash
-pip install -e ".[dev]"
+pip install dynamixel-sdk numpy
 ```
 
-This includes tools like Black, Flake8, and MyPy for code quality.
+**Note**: This method only installs dependencies. You'll need to add the package to your Python path to use it.
 
 ## Usage After Installation
 
@@ -37,44 +43,47 @@ u2d2.close()
 
 ## Command Line Tools
 
-After installation, you'll have access to command line tools:
+After installation, you'll have access to helper scripts in two ways:
 
+### Method 1: Direct Python Scripts
+```bash
+# Scan for Dynamixel motors
+python helpers/scan_dynamixel.py
+
+# Change motor baud rates
+python helpers/change_baud.py --new-baud 4000000
+
+# Change motor IDs
+python helpers/change_id.py --baud 4000000 --current-ids 1,2,3 --new-ids 10,11,12
+```
+
+### Method 2: Console Commands (if installed with pip install -e .)
 ```bash
 # Scan for Dynamixel motors
 dynamixel-scan
 
-# Change motor ID and baudrate
-dynamixel-change-id
+# Change motor baud rates
+dynamixel-change-baud --new-baud 4000000
+
+# Change motor IDs
+dynamixel-change-id --baud 4000000 --current-ids 1,2,3 --new-ids 10,11,12
 ```
 
-## Development Commands
+**Note**: For detailed usage instructions, see the [Helper Scripts documentation](helpers/HELPERS.md).
 
-```bash
-make install        # Install in development mode
-make install-dev    # Install with dev dependencies
-make test          # Run import test
-make clean         # Clean build artifacts
-make format        # Format code with Black
-make lint          # Lint code with Flake8
-make type-check    # Type check with MyPy
-make all-checks    # Run all quality checks
-```
 
 ## Testing
 
 Run the import test to verify installation:
 ```bash
-make test
-# or directly:
 python tests/test_import.py
 ```
 
-## Requirements
+## Dependencies
 
-- Python 3.7+
-- Linux (tested on Ubuntu 22.04)
-- Dynamixel SDK
-- NumPy
+The package automatically installs these dependencies:
+- `dynamixel-sdk>=3.7.0`
+- `numpy>=1.19.0`
 
 ## Troubleshooting
 
@@ -84,15 +93,23 @@ If you get permission errors, try:
 pip install --user -e .
 ```
 
-### Missing Dependencies
-Make sure all dependencies are installed:
-```bash
-pip install -r requirements.txt
-```
-
 ### USB Port Access
-Make sure your user is in the dialout group:
+If you can't access the USB port:
 ```bash
+# Check if user is in dialout group
+groups $USER
+
+# If not, add user to dialout group
 sudo usermod -a -G dialout $USER
 # Then log out and back in
+```
+
+### Port Not Found
+If the U2D2 port is not found:
+```bash
+# Check available USB devices
+ls /dev/ttyUSB*
+
+# Use the correct port in your code
+u2d2 = U2D2Interface('/dev/ttyUSB1', baudrate=3000000)  # Use correct port
 ```

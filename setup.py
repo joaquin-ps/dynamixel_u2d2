@@ -52,19 +52,11 @@ setup(
     ],
     python_requires=">=3.7",
     install_requires=read_requirements(),
-    extras_require={
-        "dev": [
-            "pytest>=6.0",
-            "pytest-cov>=2.0",
-            "black>=21.0",
-            "flake8>=3.8",
-            "mypy>=0.800",
-        ],
-    },
     entry_points={
         "console_scripts": [
-            "dynamixel-scan=dynamixel_u2d2.helpers.scan_dynamixel:main",
-            "dynamixel-change-id=dynamixel_u2d2.helpers.change_dxl_id_baud:main",
+            "dynamixel-scan=helpers.scan_dynamixel:main",
+            "dynamixel-change-baud=helpers.change_baud:main",
+            "dynamixel-change-id=helpers.change_id:main",
         ],
     },
     include_package_data=True,

@@ -512,6 +512,279 @@ class U2D2Interface:
         return dxl_present_current
     
     # ============================================================================
+    # BAUD RATE MANAGEMENT
+    # ============================================================================
+    
+    # Baudrate mapping for Dynamixel X-series
+    BAUDRATE_MAP = {
+        9600: 0,
+        57600: 1, 
+        115200: 2,
+        1000000: 3,
+        2000000: 4,
+        3000000: 5,
+        4000000: 6
+    }
+    
+    # Common baud rates to try during scanning
+    SCAN_BAUDRATES = [9600, 57600, 115200, 1000000, 2000000, 3000000, 4000000]
+    
+    # Control table addresses for EEPROM
+    ADDR_ID = 7
+    ADDR_BAUD_RATE = 8
+    
+    def scan_motors_at_baudrate(self, baudrate: int, scan_range: range = range(0, 253)) -> List[int]:
+        """
+        Scan for motors at a specific baud rate.
+        
+        Args:
+            baudrate: Baud rate to scan at
+            scan_range: Range of motor IDs to scan (default: 0-252)
+            
+        Returns:
+            List of detected motor IDs
+        """
+        if self.verbose:
+            print(f"[U2D2Interface] 🔄 Scanning at baudrate {baudrate}...")
+        
+        try:
+            # Store current baud rate
+            original_baud = self.portHandler.getBaudRate()
+            
+            # Temporarily change to scan baud rate
+            if not self.portHandler.setBaudRate(baudrate):
+                if self.verbose:
+                    print(f"[U2D2Interface]   ❌ Failed to set baudrate to {baudrate}")
+                return []
+            
+            detected = []
+            
+            for motor_id in scan_range:
+                try:
+                    # Use ping to detect motor
+                    dxl_model_number, dxl_comm_result, dxl_error = self.packetHandler.ping(
+                        self.portHandler, motor_id
+                    )
+                    if dxl_comm_result == COMM_SUCCESS:
+                        if self.verbose:
+                            print(f"[U2D2Interface]   ✅ Found motor ID {motor_id} (Model: {dxl_model_number})")
+                        detected.append(motor_id)
+                except Exception as e:
+                    if self.verbose:
+                        print(f"[U2D2Interface]   ❌ Error scanning ID {motor_id}: {e}")
+                    continue
+            
+            # Restore original baud rate
+            self.portHandler.setBaudRate(original_baud)
+            return detected
+            
+        except Exception as e:
+            if self.verbose:
+                print(f"[U2D2Interface]   ❌ Failed to scan at baudrate {baudrate}: {e}")
+            # Try to restore original baud rate on error
+            try:
+                self.portHandler.setBaudRate(original_baud)
+            except:
+                pass
+            return []
+    
+    def scan_all_baudrates(self, scan_range: range = range(0, 253)) -> Dict[int, int]:
+        """
+        Scan for motors at all possible baud rates.
+        
+        Args:
+            scan_range: Range of motor IDs to scan (default: 0-252)
+            
+        Returns:
+            Dictionary mapping motor_id to baudrate
+        """
+        if self.verbose:
+            print("[U2D2Interface] 🔍 Scanning for motors at all baud rates...")
+        
+        detected_motors = {}
+        
+        for baudrate in self.SCAN_BAUDRATES:
+            detected = self.scan_motors_at_baudrate(baudrate, scan_range)
+            if detected and self.verbose:
+                print(f"[U2D2Interface]   Found {len(detected)} motors at {baudrate} baud")
+            for motor_id in detected:
+                detected_motors[motor_id] = baudrate
+        
+        if self.verbose:
+            print(f"[U2D2Interface] 📊 Scan complete: Found {len(detected_motors)} motors total")
+            for motor_id, baud in detected_motors.items():
+                print(f"[U2D2Interface]   - ID {motor_id} at {baud} baud")
+        
+        return detected_motors
+    
+    def change_motor_baudrate(self, motor_id: int, current_baud: int, new_baud: int) -> bool:
+        """
+        Change baud rate of a specific motor.
+        
+        Args:
+            motor_id: Motor ID to change
+            current_baud: Current baud rate of the motor
+            new_baud: New baud rate to set
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if new_baud not in self.BAUDRATE_MAP:
+            print(f"[U2D2Interface] ❌ Invalid baud rate: {new_baud}. Valid rates: {list(self.BAUDRATE_MAP.keys())}")
+            return False
+        
+        try:
+            # Store current baud rate
+            original_baud = self.portHandler.getBaudRate()
+            
+            # Temporarily change to current motor baud rate
+            if not self.portHandler.setBaudRate(current_baud):
+                print(f"[U2D2Interface] ❌ Failed to set baud rate to {current_baud}")
+                return False
+            
+            # Change motor baud rate
+            baudrate_code = self.BAUDRATE_MAP[new_baud]
+            dxl_comm_result, dxl_error = self.packetHandler.write1ByteTxRx(
+                self.portHandler, motor_id, self.ADDR_BAUD_RATE, baudrate_code
+            )
+            
+            # Restore original baud rate
+            self.portHandler.setBaudRate(original_baud)
+            
+            if dxl_comm_result == COMM_SUCCESS:
+                print(f"[U2D2Interface] ✅ Motor ID {motor_id}: {current_baud} → {new_baud} baud")
+                return True
+            else:
+                print(f"[U2D2Interface] ❌ Failed to change baud rate for ID {motor_id}: {self.packetHandler.getTxRxResult(dxl_comm_result)}")
+                return False
+                
+        except Exception as e:
+            print(f"[U2D2Interface] ❌ Error changing baud rate for ID {motor_id}: {e}")
+            # Try to restore original baud rate on error
+            try:
+                self.portHandler.setBaudRate(original_baud)
+            except:
+                pass
+            return False
+    
+    def change_motors_baudrate(self, motor_baud_map: Dict[int, int], new_baud: int) -> Dict[int, bool]:
+        """
+        Change baud rate for multiple motors.
+        
+        Args:
+            motor_baud_map: Dictionary mapping motor_id to current baud rate
+            new_baud: New baud rate to set
+            
+        Returns:
+            Dictionary mapping motor_id to success status
+        """
+        if not motor_baud_map:
+            print("[U2D2Interface] ❌ No motor IDs provided")
+            return {}
+        
+        results = {}
+        
+        for motor_id, current_baud in motor_baud_map.items():
+            if current_baud == new_baud:
+                print(f"[U2D2Interface] ⏭️  Motor ID {motor_id} already at {new_baud} baud, skipping")
+                results[motor_id] = True
+                continue
+            
+            success = self.change_motor_baudrate(motor_id, current_baud, new_baud)
+            results[motor_id] = success
+        
+        return results
+    
+    def change_motor_id(self, current_id: int, new_id: int, baudrate: int) -> bool:
+        """
+        Change the ID of a single motor.
+        
+        Args:
+            current_id: Current motor ID
+            new_id: New motor ID to set
+            baudrate: Baud rate to use for communication
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if new_id < 0 or new_id > 252:
+            print(f"[U2D2Interface] ❌ Invalid new ID: {new_id}. Must be 0-252")
+            return False
+        
+        try:
+            # Store current baud rate
+            original_baud = self.portHandler.getBaudRate()
+            
+            # Temporarily change to specified baud rate
+            if not self.portHandler.setBaudRate(baudrate):
+                print(f"[U2D2Interface] ❌ Failed to set baud rate to {baudrate}")
+                return False
+            
+            # Change motor ID
+            dxl_comm_result, dxl_error = self.packetHandler.write1ByteTxRx(
+                self.portHandler, current_id, self.ADDR_ID, new_id
+            )
+            
+            # Restore original baud rate
+            self.portHandler.setBaudRate(original_baud)
+            
+            if dxl_comm_result == COMM_SUCCESS:
+                print(f"[U2D2Interface] ✅ Motor ID {current_id} → {new_id}")
+                return True
+            else:
+                print(f"[U2D2Interface] ❌ Failed to change ID {current_id} → {new_id}: {self.packetHandler.getTxRxResult(dxl_comm_result)}")
+                return False
+                
+        except Exception as e:
+            print(f"[U2D2Interface] ❌ Error changing ID {current_id} → {new_id}: {e}")
+            # Try to restore original baud rate on error
+            try:
+                self.portHandler.setBaudRate(original_baud)
+            except:
+                pass
+            return False
+    
+    def change_motors_id(self, id_mapping: Dict[int, int], baudrate: int) -> Dict[int, bool]:
+        """
+        Change IDs for multiple motors.
+        
+        Args:
+            id_mapping: Dictionary mapping current_id to new_id
+            baudrate: Baud rate to use for communication
+            
+        Returns:
+            Dictionary mapping current_id to success status
+        """
+        if not id_mapping:
+            print("[U2D2Interface] ❌ No motor ID mappings provided")
+            return {}
+        
+        # Validate all new IDs
+        invalid_ids = [new_id for new_id in id_mapping.values() if new_id < 0 or new_id > 252]
+        if invalid_ids:
+            print(f"[U2D2Interface] ❌ Invalid new IDs: {invalid_ids}. Must be 0-252")
+            return {}
+        
+        # Check for duplicate new IDs
+        new_ids = list(id_mapping.values())
+        if len(new_ids) != len(set(new_ids)):
+            print("[U2D2Interface] ❌ Duplicate new IDs found. Each motor must have a unique ID.")
+            return {}
+        
+        results = {}
+        
+        for current_id, new_id in id_mapping.items():
+            if current_id == new_id:
+                print(f"[U2D2Interface] ⏭️  Motor ID {current_id} already at {new_id}, skipping")
+                results[current_id] = True
+                continue
+            
+            success = self.change_motor_id(current_id, new_id, baudrate)
+            results[current_id] = success
+        
+        return results
+    
+    # ============================================================================
     # PORT MANAGEMENT
     # ============================================================================
     

@@ -2,6 +2,8 @@
 
 A high-level interface for controlling Dynamixel motors through the U2D2 communication bridge, with support for both individual motor operations and efficient bulk operations.
 
+**🔧 Helper Scripts**: For quick motor management tasks like scanning, changing baud rates, and changing motor IDs, see the [Helper Scripts documentation](helpers/HELPERS.md).
+
 Tested on: Ubuntu 22.04
 
 ## Quick Setup (Linux)
@@ -22,6 +24,7 @@ Before using the U2D2 interface, make sure your U2D2 device is properly configur
 ## Table of Contents
 
 - [Overview](#overview)
+- [Helper Scripts](#helper-scripts)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [API Reference](#api-reference)
@@ -47,16 +50,47 @@ The `U2D2Interface` class provides a comprehensive interface for controlling Dyn
 - **Error Handling**: Comprehensive error reporting
 - **Flexible**: Support for all Dynamixel X-series control modes
 
+## Helper Scripts
+
+For users who need quick motor management tasks without writing Python code, this package includes three powerful command-line helper scripts:
+
+- **`scan_dynamixel.py`**: Scan for motors at different baud rates and ID ranges
+- **`change_baud.py`**: Change motor baud rates with flexible scanning options
+- **`change_id.py`**: Change motor IDs with validation and confirmation
+
+These scripts provide a user-friendly interface for common Dynamixel management tasks and are perfect for:
+- Initial motor setup and configuration
+- Troubleshooting communication issues
+- Batch operations on multiple motors
+- Quick motor discovery and identification
+
+📖 **See the [Helper Scripts documentation](helpers/HELPERS.md) for detailed usage instructions and examples.**
+
 ## Installation
+
+### Option 1: Install from Source (Recommended)
+
+```bash
+# Clone the repository
+git clone <your-repo-url>
+cd dynamixel_u2d2
+
+# Install in development mode
+pip install -e .
+```
+
+### Option 2: Install Dependencies Only
 
 ```bash
 pip install dynamixel-sdk numpy
 ```
 
+**Note**: Option 1 is recommended as it provides access to the helper scripts and proper package structure.
+
 ## Quick Start
 
 ```python
-from u2d2_interface import U2D2Interface
+from dynamixel_u2d2 import U2D2Interface
 
 # Initialize interface
 u2d2 = U2D2Interface('/dev/ttyUSB0', baudrate=3000000)
@@ -419,7 +453,7 @@ u2d2.close()
 ### Basic Position Control
 
 ```python
-from u2d2_interface import U2D2Interface
+from dynamixel_u2d2 import U2D2Interface
 
 # Initialize
 u2d2 = U2D2Interface('/dev/ttyUSB0', baudrate=3000000)
@@ -448,7 +482,7 @@ finally:
 ### Bulk Operations
 
 ```python
-from u2d2_interface import U2D2Interface
+from dynamixel_u2d2 import U2D2Interface
 
 # Initialize
 u2d2 = U2D2Interface('/dev/ttyUSB0', baudrate=3000000)
