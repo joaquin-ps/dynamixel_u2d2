@@ -57,6 +57,7 @@ setup(
             "dynamixel-scan=helpers.scan_dynamixel:main",
             "dynamixel-change-baud=helpers.change_baud:main",
             "dynamixel-change-id=helpers.change_id:main",
+            "dynamixel-port=helpers.u2d2_port_timer:main",
         ],
     },
     include_package_data=True,

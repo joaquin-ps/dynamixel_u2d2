@@ -5,10 +5,93 @@ These scripts provide easy-to-use command-line tools for scanning, changing baud
 ## Quick Start
 
 1. **Install the package**: `pip install -e .` (from the project root)
-2. **Find your USB port**: Usually `/dev/ttyUSB0` on Linux
-3. **Scan for motors**: `python scan_dynamixel.py`
-4. **Change baud rates**: `python change_baud.py --new-baud 4000000`
-5. **Change motor IDs**: `python change_id.py --baud 4000000 --current-ids 1,2,3 --new-ids 10,11,12`
+2. **Configure U2D2 ports**: `python3 u2d2_port_simple.py`
+3. **Scan for motors**: `python3 scan_dynamixel.py`
+4. **Change baud rates**: `python3 change_baud.py --new-baud 4000000`
+5. **Change motor IDs**: `python3 change_id.py --baud 4000000 --current-ids 1,2,3 --new-ids 10,11,12`
+
+---
+
+## 🔧 Port Management
+
+### 🚀 u2d2_port_timer.py
+
+**Purpose**: U2D2 port scanner and latency timer setter.
+
+#### Basic Usage
+
+```bash
+# Scan and display U2D2 ports (no changes)
+dynamixel-port
+
+# Set all U2D2 ports to 2ms latency
+dynamixel-port --latency-timer 2
+
+# Set all U2D2 ports to 1ms latency
+dynamixel-port --latency-timer 1
+
+# Set all U2D2 ports to 4ms latency
+dynamixel-port --latency-timer 4
+
+# Show help
+dynamixel-port --help
+
+# Alternative: Run directly from helpers directory
+python3 u2d2_port_timer.py                    # Scan only
+python3 u2d2_port_timer.py --latency-timer 2  # Configure
+python3 u2d2_port_timer.py --help             # Help
+```
+
+#### Command Line Options
+
+| Option | Description | Required |
+|--------|-------------|----------|
+| `--latency-timer` | Latency timer value in milliseconds (must be positive integer) | No |
+| `--help` | Show help message and exit | No |
+
+#### Features
+
+- ✅ Automatically finds all U2D2 ports (`/dev/ttyUSB*`, `/dev/ttyACM*`)
+- ✅ Shows current latency timer for each port
+- ✅ Sets latency timer to specified value
+- ✅ Validates that latency is a positive integer
+- ✅ Only affects `/dev/ttyUSB*` ports (where latency timer is available)
+- ✅ Asks for user confirmation before making changes
+- ✅ Proper command-line interface with help
+- ✅ Simple, focused functionality
+
+#### Example Output
+
+**Scan-only mode:**
+```
+🔍 Scanning for U2D2 ports...
+
+Found 2 U2D2 port(s):
+  /dev/ttyUSB0: 1ms
+  /dev/ttyUSB1: 1ms
+
+💡 Use --latency-timer to configure port latency
+```
+
+**Configure mode:**
+```
+🔍 Scanning for U2D2 ports...
+🎯 Target latency: 2ms
+
+Found 2 U2D2 port(s):
+  /dev/ttyUSB0: 1ms ⚠️
+  /dev/ttyUSB1: 1ms ⚠️
+
+⚠️  2 port(s) need to be changed to 2ms
+This requires sudo privileges.
+
+Proceed with changing latency timer to 2ms? (y/n): y
+
+✅ /dev/ttyUSB0: Set to 2ms
+✅ /dev/ttyUSB1: Set to 2ms
+
+📊 Configured 2/2 ports successfully
+```
 
 ---
 
