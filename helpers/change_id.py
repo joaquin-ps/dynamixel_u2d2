@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Change Dynamixel motor IDs with validation and confirmation.
 

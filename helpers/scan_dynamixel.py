@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Scan for Dynamixel motors with flexible baud rate and ID range options.
 
