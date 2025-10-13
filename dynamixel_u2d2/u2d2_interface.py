@@ -131,18 +131,14 @@ class U2D2Interface:
                 - 'position': Position control mode
                 - 'current': Current control mode  
                 - 'current_based_position': Current-based position control mode
-                - 'velocity': Velocity control mode
-                - 'extended_position': Extended position control mode
-                - 'pwm': PWM control mode
         """
         mode_map = {
             'position': POSITION_CONTROL,
             'current': CURRENT_CONTROL_MODE,
-            'current_based_position': CURRENT_BASED_POSITION_CONTROL,
-            'velocity': 1,  # VELOCITY_CONTROL
-            'extended_position': 4,  # EXTENDED_POSITION_CONTROL
-            'pwm': 16,  # PWM_CONTROL
+            'current_based_position': CURRENT_BASED_POSITION_CONTROL
         }
+        
+        # TODO: Add support for velocity, extended_position, pwm control modes
         
         if mode not in mode_map:
             valid_modes = ', '.join(mode_map.keys())
