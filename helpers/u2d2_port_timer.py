@@ -21,6 +21,7 @@ import os
 import glob
 import subprocess
 import stat
+import sys
 from pathlib import Path
 
 def find_u2d2_ports():
