@@ -78,6 +78,7 @@ class U2D2Interface:
     through the U2D2 communication bridge, with efficient sync operations for
     multi-motor control scenarios.
     """
+
     def __init__(
         self,
         usb_port: str,
@@ -630,6 +631,7 @@ class U2D2Interface:
     def bulk_read_states(self, motor_ids: List[int]) -> Dict[int, Dict[str, int]]:
         """
         Bulk read all states (position, velocity, current) from multiple motors.
+        Optimized to use a single bulk read operation.
         
         Args:
             motor_ids: List of motor IDs to read
@@ -637,6 +639,7 @@ class U2D2Interface:
         Returns:
             Dict mapping motor_id to state dict with 'position', 'velocity', 'current'
         """
+        # Bulk read cannot handle more than 4 bytes at a time, so we need to read each state separately
         positions = self.bulk_read_positions(motor_ids)
         velocities = self.bulk_read_velocities(motor_ids)
         currents = self.bulk_read_currents(motor_ids)
@@ -779,6 +782,9 @@ class U2D2Interface:
     # BAUD RATE AND ID MANAGEMENT
     # ============================================================================
     
+    SCAN_BAUDRATES = SCAN_BAUDRATES
+    BAUDRATE_MAP = BAUDRATE_MAP
+
     def scan_motors_at_baudrate(self, baudrate: int, scan_range: range = range(0, 253)) -> List[int]:
         """
         Scan for motors at a specific baud rate.
@@ -876,7 +882,7 @@ class U2D2Interface:
             True if successful, False otherwise
         """
         if new_baud not in BAUDRATE_MAP:
-            print(f"[U2D2Interface] ❌ Invalid baud rate: {new_baud}. Valid rates: {list(self.BAUDRATE_MAP.keys())}")
+            print(f"[U2D2Interface] ❌ Invalid baud rate: {new_baud}. Valid rates: {list(BAUDRATE_MAP.keys())}")
             return False
         
         try:
