@@ -12,7 +12,15 @@ Requirements:
 import struct
 import numpy as np
 from typing import Dict, List, Tuple, Literal, Optional
-from dynamixel_sdk import *  # Dynamixel SDK
+from dynamixel_sdk import (
+    PortHandler,
+    PacketHandler, 
+    GroupSyncRead,
+    GroupSyncWrite,
+    GroupBulkRead,
+    GroupBulkWrite,
+    COMM_SUCCESS
+)
 
 # ============================================================================
 # CONTROL TABLE ADDRESSES AND CONSTANTS
@@ -38,7 +46,6 @@ ADDR_PRESENT_POSITION = 132
 
 # Control modes
 POSITION_CONTROL = 3
-CURRENT_BASED_POSITION_CONTROL = 5
 CURRENT_CONTROL_MODE = 0
 
 # Data lengths for bulk operations
@@ -47,6 +54,12 @@ LEN_GOAL_POSITION = 4
 LEN_PRESENT_POSITION = 4
 LEN_PRESENT_VELOCITY = 4
 LEN_PRESENT_CURRENT = 2
+
+STATE_ADDRESS_MAP = {
+    "current": (ADDR_PRESENT_CURRENT, LEN_PRESENT_CURRENT, 16),
+    "velocity": (ADDR_PRESENT_VELOCITY, LEN_PRESENT_VELOCITY, 32),
+    "position": (ADDR_PRESENT_POSITION, LEN_PRESENT_POSITION, 32),
+}
 
 # Constant for Sync Operations: 
 ADDR_ALL_STATES = ADDR_PRESENT_CURRENT
@@ -86,7 +99,7 @@ class U2D2Interface:
         motor_ids: Optional[List[int]] = None,
         protocol_version: float = 2.0,
         verbose: bool = False,
-        read_states: Optional[List[str]] = None
+        read_specific_states: Optional[List[str]] = None
     ):
         """
         Args:
@@ -95,7 +108,6 @@ class U2D2Interface:
             motor_ids: List of motor IDs for bulk reads (optional for utility functions)
             protocol_version: Dynamixel protocol version (usually 2.0)
             verbose: Print verbose output (default: False)
-            read_states: List of states to read ['position', 'velocity', 'current'] (default: all)
         """
         self.usb_port = usb_port
         self.baudrate = baudrate
@@ -109,7 +121,7 @@ class U2D2Interface:
 
         # Group handlers
         self._groupSyncRead = None
-        self._groupSyncReadPositions = None
+        self._groupSyncReadSpecific = None
         self._groupSyncWritePosition = None
         self._groupSyncWriteCurrent = None
         
@@ -120,42 +132,26 @@ class U2D2Interface:
         if self.motor_ids is not None:
             self._setup_sync_io_handlers()
     
+    # ============================================================================
+    # SETUP METHODS
+    # ============================================================================
+
     def _setup_sync_io_handlers(self):
         """Setup sync read/write for bulk operations."""
         if self.motor_ids is None:
             raise RuntimeError("Cannot setup bulk I/O without motor_ids")
         
         # Single sync reader for all motors (reads current + velocity + position)
-        self._groupSyncRead = GroupSyncRead(
-            self._portHandler,
-            self._packetHandler,
-            ADDR_ALL_STATES,
-            LEN_ALL_STATES
-        )
-        
-        # Position-only sync reader (more efficient for position-only reads)
-        self._groupSyncReadPositions = GroupSyncRead(
-            self._portHandler,
-            self._packetHandler,
-            ADDR_PRESENT_POSITION,
-            LEN_PRESENT_POSITION
-        )
-        
-        for motor_id in self.motor_ids:
-            if not self._groupSyncRead.addParam(motor_id):
-                raise RuntimeError(f"Failed to add sync read param for motor {motor_id}")
-            if not self._groupSyncReadPositions.addParam(motor_id):
-                raise RuntimeError(f"Failed to add position sync read param for motor {motor_id}")
-        
+        self.init_group_sync_read(self.motor_ids)
+            
         # Sync writers
-        self._sync_write_position = GroupSyncWrite(
+        self._groupSyncWritePosition = GroupSyncWrite(
             self._portHandler,
             self._packetHandler,
-            ADDR_GOAL_POSITION,
+            ADDR_GOAL_POSITION, 
             LEN_GOAL_POSITION
         )
-        
-        self._sync_write_current = GroupSyncWrite(
+        self._groupSyncWriteCurrent = GroupSyncWrite(
             self._portHandler,
             self._packetHandler,
             ADDR_GOAL_CURRENT,
@@ -170,8 +166,7 @@ class U2D2Interface:
         if not self._portHandler.setBaudRate(self.baudrate):
             raise RuntimeError(f"Failed to set baudrate to {self.baudrate}!")
         
-        if self.verbose:
-            print(f"[U2D2Interface] ✅ Connected to {self.usb_port} at {self.baudrate} baud")
+        self._verbose_log(f"✅ Connected to {self.usb_port} at {self.baudrate} baud")
 
     # ============================================================================
     # MOTOR CONFIGURATION
@@ -183,7 +178,7 @@ class U2D2Interface:
             self._portHandler, motor_id, ADDR_TORQUE_ENABLE, 1
         )
         if dxl_comm_result != COMM_SUCCESS:
-            print(f"[U2D2Interface] ❌ Torque Enable Error ({motor_id}): {self._packetHandler.getTxRxResult(dxl_comm_result)}")
+            self._log(f"❌ Torque Enable Error ({motor_id}): {self._packetHandler.getTxRxResult(dxl_comm_result)}")
     
     def disable_torque(self, motor_id: int):
         """Disable torque on the specified motor."""
@@ -191,7 +186,7 @@ class U2D2Interface:
             self._portHandler, motor_id, ADDR_TORQUE_ENABLE, 0
         )
         if dxl_comm_result != COMM_SUCCESS:
-            print(f"[U2D2Interface] ❌ Torque Disable Error ({motor_id}): {self._packetHandler.getTxRxResult(dxl_comm_result)}")
+            self._log(f"❌ Torque Disable Error ({motor_id}): {self._packetHandler.getTxRxResult(dxl_comm_result)}")
     
     def _set_operating_mode(self, motor_id: int, mode: int):
         """
@@ -205,9 +200,9 @@ class U2D2Interface:
             self._portHandler, motor_id, ADDR_OPERATING_MODE, mode
         )
         if dxl_comm_result != COMM_SUCCESS:
-            print(f"[U2D2Interface] ❌ Failed to set mode for motor {motor_id}")
+            self._log(f"❌ Failed to set mode for motor {motor_id}")
         else:
-            if self.verbose: print(f"[U2D2Interface] ✅ Set motor {motor_id} to mode {mode}")
+            self._verbose_log(f"✅ Set motor {motor_id} to mode {mode}")
     
     def set_motor_mode(self, motor_id: int, mode: MotorMode):
         """
@@ -240,9 +235,9 @@ class U2D2Interface:
             self._portHandler, motor_id, ADDR_POSITION_P_GAIN, p_gain
         )
         if dxl_comm_result != COMM_SUCCESS:
-            print(f"[U2D2Interface] ❌ Failed to set P-Gain for motor {motor_id}")
+            self._log(f"❌ Failed to set P-Gain for motor {motor_id}")
         else:
-            if self.verbose: print(f"[U2D2Interface] ✅ Set P-Gain {p_gain} for motor {motor_id}")
+            self._verbose_log(f"✅ Set P-Gain {p_gain} for motor {motor_id}")
     
     def set_position_i_gain(self, motor_id: int, i_gain: int):
         """Set the Position I Gain for a single motor."""
@@ -250,9 +245,9 @@ class U2D2Interface:
             self._portHandler, motor_id, ADDR_POSITION_I_GAIN, i_gain
         )
         if dxl_comm_result != COMM_SUCCESS:
-            print(f"[U2D2Interface] ❌ Failed to set I-Gain for motor {motor_id}")
+            self._log(f"❌ Failed to set I-Gain for motor {motor_id}")
         else:
-            if self.verbose: print(f"[U2D2Interface] ✅ Set I-Gain {i_gain} for motor {motor_id}")
+            self._verbose_log(f"✅ Set I-Gain {i_gain} for motor {motor_id}")
     
     def set_position_d_gain(self, motor_id: int, d_gain: int):
         """Set the Position D Gain for a single motor."""
@@ -260,9 +255,9 @@ class U2D2Interface:
             self._portHandler, motor_id, ADDR_POSITION_D_GAIN, d_gain
         )
         if dxl_comm_result != COMM_SUCCESS:
-            print(f"[U2D2Interface] ❌ Failed to set D-Gain for motor {motor_id}")
+            self._log(f"❌ Failed to set D-Gain for motor {motor_id}")
         else:
-            if self.verbose: print(f"[U2D2Interface] ✅ Set D-Gain {d_gain} for motor {motor_id}")
+            self._verbose_log(f"✅ Set D-Gain {d_gain} for motor {motor_id}")
     
     # ============================================================================
     # SYNC BASE OPERATIONS
@@ -282,15 +277,15 @@ class U2D2Interface:
                 raise Exception(f"[U2D2Interface] Failed to add sync read parameter for motor {motor_id}")
 
     def sync_read_state(self) -> Tuple[List[int], List[int], List[int]]:
-        """Sync read the state of all motors."""
+        """Sync read the full state (position, velocity, current) of all motors."""
 
         if self._groupSyncRead is None:
             raise RuntimeError("Sync read not configured. Initialize with motor_ids.")
         
         dxl_comm_result = self._groupSyncRead.txRxPacket()
         if dxl_comm_result != COMM_SUCCESS:
-            print(f"[U2D2Interface] ❌ Sync read state error: {dxl_comm_result}")
-            return None, None, None
+            self._log(f"❌ Sync read state error: {dxl_comm_result}")
+            raise RuntimeError(f"Sync read state error: {dxl_comm_result}")
         
         positions = []
         velocities = []
@@ -299,63 +294,86 @@ class U2D2Interface:
         for motor_id in self.motor_ids:
             # Current (2 bytes)
             if self._groupSyncRead.isAvailable(motor_id, ADDR_PRESENT_CURRENT, LEN_PRESENT_CURRENT):
-                raw = self._groupSyncRead.getData(motor_id, ADDR_PRESENT_CURRENT, LEN_PRESENT_CURRENT)
-                if raw > 0x7FFF:
-                    raw -= 0x10000
-                currents.append(raw)
+                unsigned_raw = self._groupSyncRead.getData(motor_id, ADDR_PRESENT_CURRENT, LEN_PRESENT_CURRENT)
+                value = self._to_signed(unsigned_raw, 8 * LEN_PRESENT_CURRENT)
+                currents.append(value)
             else:
-                currents.append(0)
+                currents.append(None)
             
             # Velocity (4 bytes)
             if self._groupSyncRead.isAvailable(motor_id, ADDR_PRESENT_VELOCITY, LEN_PRESENT_VELOCITY):
-                raw = self._groupSyncRead.getData(motor_id, ADDR_PRESENT_VELOCITY, LEN_PRESENT_VELOCITY)
-                if raw > 0x7FFFFFFF:
-                    raw -= 0x100000000
-                velocities.append(raw)
+                unsigned_raw = self._groupSyncRead.getData(motor_id, ADDR_PRESENT_VELOCITY, LEN_PRESENT_VELOCITY)
+                value = self._to_signed(unsigned_raw, 8 * LEN_PRESENT_VELOCITY)
+                velocities.append(value)
             else:
-                velocities.append(0)
+                velocities.append(None)
             
             # Position (4 bytes)
             if self._groupSyncRead.isAvailable(motor_id, ADDR_PRESENT_POSITION, LEN_PRESENT_POSITION):
-                raw = self._groupSyncRead.getData(motor_id, ADDR_PRESENT_POSITION, LEN_PRESENT_POSITION)
-                if raw > 0x7FFFFFFF:
-                    raw -= 0x100000000
-                positions.append(raw)
+                unsigned_raw = self._groupSyncRead.getData(motor_id, ADDR_PRESENT_POSITION, LEN_PRESENT_POSITION)
+                value = self._to_signed(unsigned_raw, 8 * LEN_PRESENT_POSITION)
+                positions.append(value)
             else:
-                positions.append(0)
+                positions.append(None)
         
         return positions, velocities, currents
     
-    def sync_read_positions(self) -> List[int]:
-        """
-        Sync read only positions for all configured motors.
-        More efficient than reading all states when only positions are needed.
-        
-        Returns:
-            List of position values in same order as self.motor_ids
-        """
-        if self._groupSyncReadPositions is None:
-            raise RuntimeError("Position sync read not configured. Initialize with motor_ids.")
-        
-        dxl_comm_result = self._groupSyncReadPositions.txRxPacket()
-        if dxl_comm_result != COMM_SUCCESS:
-            print(f"[U2D2Interface] ❌ Sync read positions error: {dxl_comm_result}")
-            return None
-        
-        positions = []
+    # ============================================================================
+    # SYNC SPECIFIC STATE READS
+    # ============================================================================
+
+    def init_specific_group_sync_read(self, state: str):
+        """Initialize group sync read parameters for specific states."""
+        if state not in STATE_ADDRESS_MAP.keys():
+            raise ValueError(f"Invalid state: {state}")
+
+        address, length, bits = STATE_ADDRESS_MAP[state]
+        self._groupSyncReadSpecific = GroupSyncRead(
+            self._portHandler,
+            self._packetHandler,
+            address,
+            length,
+        )
         
         for motor_id in self.motor_ids:
-            # Position (4 bytes)
-            if self._groupSyncReadPositions.isAvailable(motor_id, ADDR_PRESENT_POSITION, LEN_PRESENT_POSITION):
-                raw = self._groupSyncReadPositions.getData(motor_id, ADDR_PRESENT_POSITION, LEN_PRESENT_POSITION)
-                if raw > 0x7FFFFFFF:
-                    raw -= 0x100000000
-                positions.append(raw)
-            else:
-                positions.append(0)
-        
-        return positions
+            if not self._groupSyncReadSpecific.addParam(motor_id):
+                raise Exception(f"[U2D2Interface] Failed to add sync read parameter for motor {motor_id}")
 
+    def sync_read_specific(self, state: str) -> List[int]:
+        """
+        Sync read only specific state for all configured motors.
+        More efficient than reading all states when only one state is needed.
+        
+        Args:
+            state: State to read ('position', 'velocity', 'current')
+        
+        Returns:
+            List of state values in same order as self.motor_ids
+        """
+        if self._groupSyncReadSpecific is None:
+            raise RuntimeError(f"Specific state sync read not configured. Call init_specific_group_sync_read({state}) first.")
+        
+        dxl_comm_result = self._groupSyncReadSpecific.txRxPacket()
+        if dxl_comm_result != COMM_SUCCESS:
+            self._log(f"❌ Sync read specific state '{state}' error: {dxl_comm_result}")
+            raise RuntimeError(f"Sync read specific state '{state}' error: {dxl_comm_result}")
+        
+        if state not in STATE_ADDRESS_MAP.keys():
+            raise ValueError(f"Invalid state: {state}")
+
+        address, length, bits = STATE_ADDRESS_MAP[state]
+        specific_state = []
+        
+        for motor_id in self.motor_ids:
+            # Specific state:
+            if self._groupSyncReadSpecific.isAvailable(motor_id, address, length):
+                raw = self._groupSyncReadSpecific.getData(motor_id, address, length)
+                state_value = self._to_signed(raw, bits)
+                specific_state.append(state_value)
+            else:
+                specific_state.append(None)
+        
+        return specific_state
 
     # ============================================================================
     # BULK BASE OPERATIONS
@@ -378,12 +396,13 @@ class U2D2Interface:
         for motor_id, address, length in read_params:
             dxl_addparam_result = groupBulkRead.addParam(motor_id, address, length)
             if not dxl_addparam_result:
-                print(f"[U2D2Interface] [ID:{motor_id}] groupBulkRead addParam failed")
-        
+                self._log(f"❌ [ID:{motor_id}] groupBulkRead addParam failed")
+                return {}
+
         # Perform bulk read
         dxl_comm_result = groupBulkRead.txRxPacket()
         if dxl_comm_result != COMM_SUCCESS:
-            print(f"[U2D2Interface] Bulk read error: {self._packetHandler.getTxRxResult(dxl_comm_result)}")
+            self._log(f"❌ Bulk read error: {self._packetHandler.getTxRxResult(dxl_comm_result)}")
             return {}
         
         # Extract results
@@ -425,13 +444,15 @@ class U2D2Interface:
             data_array = list(data_bytes)
             dxl_addparam_result = groupBulkWrite.addParam(motor_id, address, len(data_bytes), data_array)
             if not dxl_addparam_result:
-                print(f"[U2D2Interface] [ID:{motor_id}] groupBulkWrite addParam failed")
+                self._log(f"❌ [ID:{motor_id}] groupBulkWrite addParam failed")
+                return
         
         # Perform bulk write
         dxl_comm_result = groupBulkWrite.txPacket()
         if dxl_comm_result != COMM_SUCCESS:
-            print(f"[U2D2Interface] Bulk write error: {self._packetHandler.getTxRxResult(dxl_comm_result)}")
-        
+            self._log(f"❌ Bulk write error: {self._packetHandler.getTxRxResult(dxl_comm_result)}")
+            return
+
         # Clear bulk write
         groupBulkWrite.clearParam()
     
@@ -611,7 +632,7 @@ class U2D2Interface:
             self._portHandler, motor_id, ADDR_GOAL_POSITION, goal
         )
         if dxl_comm_result != COMM_SUCCESS:
-            print(f"[U2D2Interface] ❌ Command Position Error ({motor_id}): {self._packetHandler.getTxRxResult(dxl_comm_result)}")
+            self._log(f"❌ Command Position Error ({motor_id}): {self._packetHandler.getTxRxResult(dxl_comm_result)}")
     
     def set_goal_current(self, motor_id: int, current: int):
         """Set the goal current for a single motor."""
@@ -619,7 +640,7 @@ class U2D2Interface:
             self._portHandler, motor_id, ADDR_GOAL_CURRENT, int(current)
         )
         if dxl_comm_result != COMM_SUCCESS:
-            print(f"[U2D2Interface] ❌ Failed to set goal current for motor {motor_id}")
+            self._log(f"❌ Failed to set goal current for motor {motor_id}")
     
     def set_velocity_limit(self, motor_id: int, velocity_limit: int):
         """Set the profile velocity limit for a single motor."""
@@ -627,7 +648,7 @@ class U2D2Interface:
             self._portHandler, motor_id, ADDR_PROFILE_VELOCITY, velocity_limit
         )
         if dxl_comm_result != COMM_SUCCESS:
-            print(f"[U2D2Interface] ❌ Set Velocity Limit Error ({motor_id}): {self._packetHandler.getTxRxResult(dxl_comm_result)}")
+            self._log(f"❌ Set Velocity Limit Error ({motor_id}): {self._packetHandler.getTxRxResult(dxl_comm_result)}")
     
     def set_current_limit(self, motor_id: int, limit_mA: int):
         """Set the current limit for a single motor."""
@@ -635,9 +656,9 @@ class U2D2Interface:
             self._portHandler, motor_id, ADDR_CURRENT_LIMIT, limit_mA
         )
         if dxl_comm_result != COMM_SUCCESS:
-            print(f"[U2D2Interface] ❌ Failed to set current limit for motor {motor_id}")
+            self._log(f"❌ Failed to set current limit for motor {motor_id}")
         else:
-            if self.verbose: print(f"[U2D2Interface] ✅ Set current limit {limit_mA}LSB for motor {motor_id}")
+            self._verbose_log(f"✅ Set current limit {limit_mA}LSB for motor {motor_id}")
     
     def get_position(self, motor_id: int) -> int:
         """Return the current position of a motor."""
@@ -645,7 +666,7 @@ class U2D2Interface:
             self._portHandler, motor_id, ADDR_PRESENT_POSITION
         )
         if dxl_comm_result != COMM_SUCCESS:
-            print(f"[U2D2Interface] ❌ Get Position Error ({motor_id}): {self._packetHandler.getTxRxResult(dxl_comm_result)}")
+            self._log(f"❌ Get Position Error ({motor_id}): {self._packetHandler.getTxRxResult(dxl_comm_result)}")
         return dxl_present_position
     
     def get_velocity(self, motor_id: int) -> int:
@@ -655,7 +676,7 @@ class U2D2Interface:
         )
         
         if dxl_comm_result != COMM_SUCCESS:
-            print(f"[U2D2Interface] ❌ Get Velocity Error ({motor_id}): {self._packetHandler.getTxRxResult(dxl_comm_result)}")
+            self._log(f"❌ Get Velocity Error ({motor_id}): {self._packetHandler.getTxRxResult(dxl_comm_result)}")
             return 0
         
         # Handle two's complement for negative velocity values
@@ -671,11 +692,11 @@ class U2D2Interface:
         )
         
         if dxl_comm_result != COMM_SUCCESS:
-            print(f"[U2D2Interface] ❌ Get Current Error ({motor_id}): {self._packetHandler.getTxRxResult(dxl_comm_result)}")
+            self._log(f"❌ Get Current Error ({motor_id}): {self._packetHandler.getTxRxResult(dxl_comm_result)}")
             return 0
         
         if dxl_error != 0:
-            print(f"[U2D2Interface] Error in motor {motor_id}: {self._packetHandler.getRxPacketError(dxl_error)}")
+            self._log(f"❌ Error in motor {motor_id}: {self._packetHandler.getRxPacketError(dxl_error)}")
             return 0
         
         # Handle two's complement for negative current values
@@ -684,7 +705,7 @@ class U2D2Interface:
         
         # Check for saturation
         if dxl_present_current == 0xFFFF:
-            print(f"[U2D2Interface] ⚠️ Current saturation detected on motor {motor_id}")
+            self._log(f"⚠️ Current saturation detected on motor {motor_id}")
             return 0
         
         return dxl_present_current
@@ -707,8 +728,7 @@ class U2D2Interface:
         Returns:
             List of detected motor IDs
         """
-        if self.verbose:
-            print(f"[U2D2Interface] 🔄 Scanning at baudrate {baudrate}...")
+        self._verbose_log(f"🔄 Scanning at baudrate {baudrate}...")
         
         try:
             # Store current baud rate
@@ -716,8 +736,7 @@ class U2D2Interface:
             
             # Temporarily change to scan baud rate
             if not self._portHandler.setBaudRate(baudrate):
-                if self.verbose:
-                    print(f"[U2D2Interface]   ❌ Failed to set baudrate to {baudrate}")
+                self._log(f"❌ Failed to set baudrate to {baudrate}")
                 return []
             
             detected = []
@@ -729,12 +748,10 @@ class U2D2Interface:
                         self._portHandler, motor_id
                     )
                     if dxl_comm_result == COMM_SUCCESS:
-                        if self.verbose:
-                            print(f"[U2D2Interface]   ✅ Found motor ID {motor_id} (Model: {dxl_model_number})")
+                        self._verbose_log(f"✅ Found motor ID {motor_id} (Model: {dxl_model_number})")
                         detected.append(motor_id)
                 except Exception as e:
-                    if self.verbose:
-                        print(f"[U2D2Interface]   ❌ Error scanning ID {motor_id}: {e}")
+                    self._log(f"❌ Error scanning ID {motor_id}: {e}")
                     continue
             
             # Restore original baud rate
@@ -742,8 +759,8 @@ class U2D2Interface:
             return detected
             
         except Exception as e:
-            if self.verbose:
-                print(f"[U2D2Interface]   ❌ Failed to scan at baudrate {baudrate}: {e}")
+            self._log(f"❌ Failed to scan at baudrate {baudrate}: {e}")
+            
             # Try to restore original baud rate on error
             try:
                 self._portHandler.setBaudRate(original_baud)
@@ -761,22 +778,20 @@ class U2D2Interface:
         Returns:
             Dictionary mapping motor_id to baudrate
         """
-        if self.verbose:
-            print("[U2D2Interface] 🔍 Scanning for motors at all baud rates...")
+        self._verbose_log("🔍 Scanning for motors at all baud rates...")
         
         detected_motors = {}
         
         for baudrate in SCAN_BAUDRATES:
             detected = self.scan_motors_at_baudrate(baudrate, scan_range)
-            if detected and self.verbose:
-                print(f"[U2D2Interface]   Found {len(detected)} motors at {baudrate} baud")
+            if detected:
+                self._verbose_log(f"Found {len(detected)} motors at {baudrate} baud")
             for motor_id in detected:
                 detected_motors[motor_id] = baudrate
         
-        if self.verbose:
-            print(f"[U2D2Interface] 📊 Scan complete: Found {len(detected_motors)} motors total")
-            for motor_id, baud in detected_motors.items():
-                print(f"[U2D2Interface]   - ID {motor_id} at {baud} baud")
+        self._verbose_log(f"📊 Scan complete: Found {len(detected_motors)} motors total")
+        for motor_id, baud in detected_motors.items():
+            self._verbose_log(f"   - ID {motor_id} at {baud} baud")
         
         return detected_motors
     
@@ -793,7 +808,7 @@ class U2D2Interface:
             True if successful, False otherwise
         """
         if new_baud not in BAUDRATE_MAP:
-            print(f"[U2D2Interface] ❌ Invalid baud rate: {new_baud}. Valid rates: {list(BAUDRATE_MAP.keys())}")
+            self._log(f"❌ Invalid baud rate: {new_baud}. Valid rates: {list(BAUDRATE_MAP.keys())}")
             return False
         
         try:
@@ -802,7 +817,7 @@ class U2D2Interface:
             
             # Temporarily change to current motor baud rate
             if not self._portHandler.setBaudRate(current_baud):
-                print(f"[U2D2Interface] ❌ Failed to set baud rate to {current_baud}")
+                self._log(f"❌ Failed to set baud rate to {current_baud}")
                 return False
             
             # Change motor baud rate
@@ -815,14 +830,14 @@ class U2D2Interface:
             self._portHandler.setBaudRate(original_baud)
             
             if dxl_comm_result == COMM_SUCCESS:
-                print(f"[U2D2Interface] ✅ Motor ID {motor_id}: {current_baud} → {new_baud} baud")
+                self._verbose_log(f"✅ Motor ID {motor_id}: {current_baud} → {new_baud} baud")
                 return True
             else:
-                print(f"[U2D2Interface] ❌ Failed to change baud rate for ID {motor_id}: {self._packetHandler.getTxRxResult(dxl_comm_result)}")
+                self._log(f"❌ Failed to change baud rate for ID {motor_id}: {self._packetHandler.getTxRxResult(dxl_comm_result)}")
                 return False
                 
         except Exception as e:
-            print(f"[U2D2Interface] ❌ Error changing baud rate for ID {motor_id}: {e}")
+            self._log(f"❌ Error changing baud rate for ID {motor_id}: {e}")
             # Try to restore original baud rate on error
             try:
                 self._portHandler.setBaudRate(original_baud)
@@ -842,14 +857,14 @@ class U2D2Interface:
             Dictionary mapping motor_id to success status
         """
         if not motor_baud_map:
-            print("[U2D2Interface] ❌ No motor IDs provided")
+            self._log(f"❌ No motor IDs provided")
             return {}
         
         results = {}
         
         for motor_id, current_baud in motor_baud_map.items():
             if current_baud == new_baud:
-                print(f"[U2D2Interface] ⏭️  Motor ID {motor_id} already at {new_baud} baud, skipping")
+                self._verbose_log(f"⏭️  Motor ID {motor_id} already at {new_baud} baud, skipping")
                 results[motor_id] = True
                 continue
             
@@ -871,7 +886,7 @@ class U2D2Interface:
             True if successful, False otherwise
         """
         if new_id < 0 or new_id > 252:
-            print(f"[U2D2Interface] ❌ Invalid new ID: {new_id}. Must be 0-252")
+            self._log(f"❌ Invalid new ID: {new_id}. Must be 0-252")
             return False
         
         try:
@@ -880,7 +895,7 @@ class U2D2Interface:
             
             # Temporarily change to specified baud rate
             if not self._portHandler.setBaudRate(baudrate):
-                print(f"[U2D2Interface] ❌ Failed to set baud rate to {baudrate}")
+                self._log(f"❌ Failed to set baud rate to {baudrate}")
                 return False
             
             # Change motor ID
@@ -892,14 +907,14 @@ class U2D2Interface:
             self._portHandler.setBaudRate(original_baud)
             
             if dxl_comm_result == COMM_SUCCESS:
-                print(f"[U2D2Interface] ✅ Motor ID {current_id} → {new_id}")
+                self._verbose_log(f"✅ Motor ID {current_id} → {new_id}")
                 return True
             else:
-                print(f"[U2D2Interface] ❌ Failed to change ID {current_id} → {new_id}: {self._packetHandler.getTxRxResult(dxl_comm_result)}")
+                self._log(f"❌ Failed to change ID {current_id} → {new_id}: {self._packetHandler.getTxRxResult(dxl_comm_result)}")
                 return False
                 
         except Exception as e:
-            print(f"[U2D2Interface] ❌ Error changing ID {current_id} → {new_id}: {e}")
+            self._log(f"❌ Error changing ID {current_id} → {new_id}: {e}")
             # Try to restore original baud rate on error
             try:
                 self._portHandler.setBaudRate(original_baud)
@@ -919,26 +934,26 @@ class U2D2Interface:
             Dictionary mapping current_id to success status
         """
         if not id_mapping:
-            print("[U2D2Interface] ❌ No motor ID mappings provided")
+            self._log(f"❌ No motor ID mappings provided")
             return {}
         
         # Validate all new IDs
         invalid_ids = [new_id for new_id in id_mapping.values() if new_id < 0 or new_id > 252]
         if invalid_ids:
-            print(f"[U2D2Interface] ❌ Invalid new IDs: {invalid_ids}. Must be 0-252")
+            self._log(f"❌ Invalid new IDs: {invalid_ids}. Must be 0-252")
             return {}
         
         # Check for duplicate new IDs
         new_ids = list(id_mapping.values())
         if len(new_ids) != len(set(new_ids)):
-            print("[U2D2Interface] ❌ Duplicate new IDs found. Each motor must have a unique ID.")
+            self._log(f"❌ Duplicate new IDs found. Each motor must have a unique ID.")
             return {}
         
         results = {}
         
         for current_id, new_id in id_mapping.items():
             if current_id == new_id:
-                print(f"[U2D2Interface] ⏭️  Motor ID {current_id} already at {new_id}, skipping")
+                self._verbose_log(f"⏭️  Motor ID {current_id} already at {new_id}, skipping")
                 results[current_id] = True
                 continue
             
@@ -954,4 +969,22 @@ class U2D2Interface:
     def close(self):
         """Close the serial port."""
         self._portHandler.closePort()
-        if self.verbose: print("[U2D2Interface] ✅ Port closed.")
+        self._verbose_log("✅ Port closed.")
+    
+    # ============================================================================
+    # UTILS
+    # ============================================================================
+    
+    def _to_signed(self, raw: int, bits: int) -> int:
+        """Convert an unsigned integer to a signed integer."""
+        sign_bit = 1 << (bits - 1)
+        return raw - (1 << bits) if raw & sign_bit else raw
+
+    def _log(self, msg: str):
+        """Log a message."""
+        print(f"[U2D2Interface] {msg}")
+    
+    def _verbose_log(self, msg: str):
+        """Log a message if verbose is True."""
+        if self.verbose:
+            self._log(msg)
