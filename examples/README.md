@@ -61,6 +61,21 @@ Demonstrates efficient position control using bulk read/write operations.
 python bulk_position_command.py
 ```
 
+### `sync_position_command.py`
+Demonstrates the new sync operations for maximum efficiency in multi-motor control.
+
+**Features:**
+- Uses sync read/write operations for optimal performance
+- Single packet for reading all motor states (position, velocity, current)
+- Single packet for commanding all motor positions
+- Specific state reading capabilities
+- Maximum efficiency for real-time control applications
+
+**Usage:**
+```bash
+python sync_position_command.py
+```
+
 **Configuration:**
 - Update `USB_PORT` to match your U2D2 device path
 - Modify `MOTOR_IDS` to match your motor IDs

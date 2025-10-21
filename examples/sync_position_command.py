@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Bulk Position Control Example
+Sync Position Control Example
 
-Commands multiple motors to the same position using bulk operations for efficiency.
+Demonstrates the new sync operations for efficient multi-motor control.
+Uses sync read/write operations for maximum performance.
 
 Usage:
-    python bulk_position_command.py
+    python sync_position_command.py
 """
 
 import sys
@@ -56,27 +57,36 @@ def setup_motors(u2d2):
     
     print("\n ✅ All motors set up successfully!")
 
-def bulk_command_position(u2d2, position):
-    """Command all motors to the same position using bulk write."""
-    # Create list of same position for all motors
-    positions = [position] * len(MOTOR_IDS)
-    u2d2.bulk_write_positions(MOTOR_IDS, positions)
-    print(f"Bulk commanded all motors to position {position}")
+def sync_command_positions(u2d2, positions):
+    """Command motors to positions using sync write operations."""
+    u2d2.sync_write_positions(positions)
+    print(f"Sync commanded motors to positions: {positions}")
 
-def bulk_read_states(u2d2):
-    """Read and display motor states using bulk read."""
-    # Use the new bulk_read_states method
-    states = u2d2.bulk_read_states(MOTOR_IDS)
+def sync_read_states(u2d2):
+    """Read and display motor states using sync read operations."""
+    # Use the new sync_read_state method for maximum efficiency
+    positions, velocities, currents = u2d2.sync_read_state()
     
     # Display results
-    print("Motor States (Bulk Read):")
-    for motor_id in MOTOR_IDS:
-        state = states[motor_id]
-        print(f"  Motor {motor_id}: Pos={state['position']:4d}, Vel={state['velocity']:4d}, Curr={state['current']:4d}")
+    print("Motor States (Sync Read):")
+    for i, motor_id in enumerate(MOTOR_IDS):
+        print(f"  Motor {motor_id}: Pos={positions[i]:4d}, Vel={velocities[i]:4d}, Curr={currents[i]:4d}")
+
+def sync_read_specific_states(u2d2, state_type):
+    """Read specific state using sync read operations."""
+    # Initialize specific sync read for the state type
+    u2d2.init_specific_group_sync_read(state_type)
+    
+    # Read the specific state
+    values = u2d2.sync_read_specific(state_type)
+    
+    print(f"Motor {state_type.title()} (Sync Read):")
+    for i, motor_id in enumerate(MOTOR_IDS):
+        print(f"  Motor {motor_id}: {state_type.title()}={values[i]:4d}")
 
 def main():
     """Main function."""
-    print("🤖 Bulk Position Control Example")
+    print("🤖 Sync Position Control Example")
     print(f"USB Port: {USB_PORT}")
     print(f"Motor IDs: {MOTOR_IDS}")
     print("Press Ctrl+C to stop")
@@ -87,8 +97,8 @@ def main():
         print(f"❌ USB port {USB_PORT} not found!")
         return 1
     
-    # Initialize U2D2 interface
-    u2d2 = U2D2Interface(USB_PORT, BAUDRATE, verbose=True)
+    # Initialize U2D2 interface with motor_ids for sync operations
+    u2d2 = U2D2Interface(USB_PORT, BAUDRATE, motor_ids=MOTOR_IDS, verbose=True)
     
     try:
         # Set up motors
@@ -100,15 +110,23 @@ def main():
             cycle += 1
             print(f"\nCycle {cycle}")
             
-            # Move to neutral position using bulk operations
-            bulk_command_position(u2d2, NEUTRAL_POSITION)
+            # Move to neutral position using sync operations
+            positions = [NEUTRAL_POSITION] * len(MOTOR_IDS)
+            sync_command_positions(u2d2, positions)
             time.sleep(2.0)
-            bulk_read_states(u2d2)
+            sync_read_states(u2d2)
             
-            # Move to rotated position using bulk operations
-            bulk_command_position(u2d2, ROTATED_POSITION)
+            # Demonstrate specific state reading
+            print("\nReading specific states:")
+            sync_read_specific_states(u2d2, 'position')
+            sync_read_specific_states(u2d2, 'velocity')
+            sync_read_specific_states(u2d2, 'current')
+            
+            # Move to rotated position using sync operations
+            positions = [ROTATED_POSITION] * len(MOTOR_IDS)
+            sync_command_positions(u2d2, positions)
             time.sleep(2.0)
-            bulk_read_states(u2d2)
+            sync_read_states(u2d2)
             
     except KeyboardInterrupt:
         print("\n🛑 Stopping...")

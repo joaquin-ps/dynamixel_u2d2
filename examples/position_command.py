@@ -13,13 +13,13 @@ import os
 import time
 from pathlib import Path
 
-# Add the parent directory to the path to import u2d2_interface
+# Add the parent directory to the path to import dynamixel_u2d2
 sys.path.append(str(Path(__file__).parent.parent))
 
-from u2d2_interface import U2D2Interface
+from dynamixel_u2d2 import U2D2Interface
 
 # Motor configuration
-MOTOR_IDS = [111, 112]
+MOTOR_IDS = [11, 21]
 USB_PORT = "/dev/ttyUSB0"  # Change this to your U2D2 port
 BAUDRATE = 4000000
 
