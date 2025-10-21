@@ -10,7 +10,6 @@ Requirements:
 """
 
 import struct
-import numpy as np
 from typing import Dict, List, Tuple, Literal, Optional
 from dynamixel_sdk import (
     PortHandler,
@@ -98,8 +97,7 @@ class U2D2Interface:
         baudrate: int = 4000000,
         motor_ids: Optional[List[int]] = None,
         protocol_version: float = 2.0,
-        verbose: bool = False,
-        read_specific_states: Optional[List[str]] = None
+        verbose: bool = False
     ):
         """
         Args:
@@ -319,6 +317,68 @@ class U2D2Interface:
         return positions, velocities, currents
     
     # ============================================================================
+    # SYNC WRITE OPERATIONS
+    # ============================================================================
+
+    def sync_write_positions(self, positions: List[int]):
+        """
+        Sync write position commands to all configured motors.
+        
+        Args:
+            positions: List of position values (must match self.motor_ids length)
+        """
+        if self._groupSyncWritePosition is None:
+            raise RuntimeError("Sync write position not configured. Initialize with motor_ids.")
+        
+        if len(positions) != len(self.motor_ids):
+            raise ValueError(f"positions length ({len(positions)}) must match motor_ids length ({len(self.motor_ids)})")
+        
+        # Clear any existing parameters
+        self._groupSyncWritePosition.clearParam()
+        
+        # Add parameters for each motor
+        for motor_id, position in zip(self.motor_ids, positions):
+            position_bytes = struct.pack('<I', int(position))
+            if not self._groupSyncWritePosition.addParam(motor_id, position_bytes):
+                raise RuntimeError(f"Failed to add position parameter for motor {motor_id}")
+        
+        # Execute sync write
+        dxl_comm_result = self._groupSyncWritePosition.txPacket()
+        if dxl_comm_result != COMM_SUCCESS:
+            self._log(f"❌ Sync write positions error: {self._packetHandler.getTxRxResult(dxl_comm_result)}")
+            raise RuntimeError(f"Sync write positions error: {dxl_comm_result}")
+
+    def sync_write_currents(self, currents: List[int]):
+        """
+        Sync write current commands to all configured motors.
+        
+        Args:
+            currents: List of current values (must match self.motor_ids length)
+        """
+        if self._groupSyncWriteCurrent is None:
+            raise RuntimeError("Sync write current not configured. Initialize with motor_ids.")
+        
+        if len(currents) != len(self.motor_ids):
+            raise ValueError(f"currents length ({len(currents)}) must match motor_ids length ({len(self.motor_ids)})")
+        
+        # Clear any existing parameters
+        self._groupSyncWriteCurrent.clearParam()
+        
+        # Add parameters for each motor
+        for motor_id, current in zip(self.motor_ids, currents):
+            # Convert signed value to unsigned 16-bit for current register
+            current_value = self._to_unsigned_16bit(int(current))
+            current_bytes = struct.pack('<H', current_value)
+            if not self._groupSyncWriteCurrent.addParam(motor_id, current_bytes):
+                raise RuntimeError(f"Failed to add current parameter for motor {motor_id}")
+        
+        # Execute sync write
+        dxl_comm_result = self._groupSyncWriteCurrent.txPacket()
+        if dxl_comm_result != COMM_SUCCESS:
+            self._log(f"❌ Sync write currents error: {self._packetHandler.getTxRxResult(dxl_comm_result)}")
+            raise RuntimeError(f"Sync write currents error: {dxl_comm_result}")
+
+    # ============================================================================
     # SYNC SPECIFIC STATE READS
     # ============================================================================
 
@@ -491,10 +551,8 @@ class U2D2Interface:
         
         write_params = []
         for motor_id, current in zip(motor_ids, currents):
-            # Handle negative values with two's complement
-            current_value = int(current)
-            if current_value < 0:
-                current_value = (1 << 16) + current_value
+            # Convert signed value to unsigned 16-bit for current register
+            current_value = self._to_unsigned_16bit(int(current))
             current_bytes = struct.pack('<H', current_value)
             write_params.append((motor_id, ADDR_GOAL_CURRENT, current_bytes))
         
@@ -979,6 +1037,10 @@ class U2D2Interface:
         """Convert an unsigned integer to a signed integer."""
         sign_bit = 1 << (bits - 1)
         return raw - (1 << bits) if raw & sign_bit else raw
+    
+    def _to_unsigned_16bit(self, signed_value: int) -> int:
+        """Convert a signed integer to unsigned 16-bit for writing to 16-bit registers."""
+        return (1 << 16) + signed_value if signed_value < 0 else signed_value
 
     def _log(self, msg: str):
         """Log a message."""

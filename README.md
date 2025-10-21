@@ -29,6 +29,7 @@ Before using the U2D2 interface, make sure your U2D2 device is properly configur
 - [Quick Start](#quick-start)
 - [API Reference](#api-reference)
   - [Motor Configuration](#motor-configuration)
+  - [Sync Operations](#sync-operations)
   - [Bulk Base Operations](#bulk-base-operations)
   - [Bulk High-Level Operations](#bulk-high-level-operations)
   - [Bulk Utils](#bulk-utils)
@@ -45,6 +46,7 @@ The `U2D2Interface` class provides a comprehensive interface for controlling Dyn
 ### Key Features
 
 - **Clean API**: Simple, intuitive method names
+- **Sync Operations**: Maximum efficiency for multi-motor control
 - **Bulk Operations**: Efficient multi-motor control
 - **Type Safety**: Full type hints and validation
 - **Error Handling**: Comprehensive error reporting
@@ -187,6 +189,84 @@ Set the Position D Gain for a motor.
 **Example:**
 ```python
 u2d2.set_position_d_gain(11, 5)
+```
+
+### Sync Operations
+
+The sync operations provide the highest efficiency for multi-motor control by using a single packet to read or write to multiple motors simultaneously. These operations are ideal for real-time control applications.
+
+#### `init_group_sync_read(motor_ids: List[int])`
+Initialize group sync read parameters for maximum efficiency.
+
+**Parameters:**
+- `motor_ids` (List[int]): List of motor IDs to configure for sync read
+
+**Example:**
+```python
+u2d2.init_group_sync_read([11, 12, 111, 112])
+```
+
+#### `sync_read_state() -> Tuple[List[int], List[int], List[int]]`
+Sync read the full state (position, velocity, current) of all configured motors.
+
+**Returns:**
+- `Tuple[List[int], List[int], List[int]]`: Tuple of (positions, velocities, currents)
+
+**Example:**
+```python
+positions, velocities, currents = u2d2.sync_read_state()
+for i, motor_id in enumerate([11, 12, 111, 112]):
+    print(f"Motor {motor_id}: Pos={positions[i]}, Vel={velocities[i]}, Curr={currents[i]}")
+```
+
+#### `sync_write_positions(positions: List[int])`
+Sync write position commands to all configured motors.
+
+**Parameters:**
+- `positions` (List[int]): List of position values (must match motor_ids length)
+
+**Example:**
+```python
+positions = [2048, 1500, 2048, 1500]
+u2d2.sync_write_positions(positions)
+```
+
+#### `sync_write_currents(currents: List[int])`
+Sync write current commands to all configured motors.
+
+**Parameters:**
+- `currents` (List[int]): List of current values (must match motor_ids length)
+
+**Example:**
+```python
+currents = [100, -50, 100, -50]
+u2d2.sync_write_currents(currents)
+```
+
+#### `init_specific_group_sync_read(state: str)`
+Initialize group sync read parameters for specific states.
+
+**Parameters:**
+- `state` (str): State to read ('position', 'velocity', 'current')
+
+**Example:**
+```python
+u2d2.init_specific_group_sync_read('position')
+```
+
+#### `sync_read_specific(state: str) -> List[int]`
+Sync read only specific state for all configured motors.
+
+**Parameters:**
+- `state` (str): State to read ('position', 'velocity', 'current')
+
+**Returns:**
+- `List[int]`: List of state values in same order as motor_ids
+
+**Example:**
+```python
+u2d2.init_specific_group_sync_read('position')
+positions = u2d2.sync_read_specific('position')
 ```
 
 ### Bulk Base Operations
@@ -479,6 +559,41 @@ finally:
     u2d2.close()
 ```
 
+### Sync Operations
+
+```python
+from dynamixel_u2d2 import U2D2Interface
+
+# Initialize with motor_ids for sync operations
+motor_ids = [11, 12, 111, 112]
+u2d2 = U2D2Interface('/dev/ttyUSB0', baudrate=3000000, motor_ids=motor_ids)
+
+try:
+    # Setup motors
+    for motor_id in motor_ids:
+        u2d2.disable_torque(motor_id)
+        u2d2.set_motor_mode(motor_id, 'position')
+        u2d2.set_position_p_gain(motor_id, 100)
+        u2d2.enable_torque(motor_id)
+    
+    # Sync control - single packet for all motors
+    positions = [2048, 1500, 2048, 1500]
+    u2d2.sync_write_positions(positions)
+    
+    # Sync read - single packet for all states
+    positions, velocities, currents = u2d2.sync_read_state()
+    for i, motor_id in enumerate(motor_ids):
+        print(f"Motor {motor_id}: Pos={positions[i]}, Vel={velocities[i]}, Curr={currents[i]}")
+    
+    # Specific state reading
+    u2d2.init_specific_group_sync_read('position')
+    positions = u2d2.sync_read_specific('position')
+    print(f"Positions: {positions}")
+        
+finally:
+    u2d2.close()
+```
+
 ### Bulk Operations
 
 ```python
@@ -528,21 +643,25 @@ The interface provides comprehensive error handling:
 
 ## Performance
 
-### Bulk Operations vs Individual Operations
+### Performance Comparison
 
-| Operation | Individual | Bulk | Improvement |
-|-----------|------------|------|-------------|
-| 4 Motors Position | 4 packets | 1 packet | 4x faster |
-| 4 Motors State Read | 12 packets | 3 packets | 4x faster |
-| 8 Motors Position | 8 packets | 1 packet | 8x faster |
+| Operation | Individual | Bulk | Sync | Improvement |
+|-----------|------------|------|------|-------------|
+| 4 Motors Position | 4 packets | 1 packet | 1 packet | 4x faster |
+| 4 Motors State Read | 12 packets | 3 packets | 1 packet | 12x faster |
+| 8 Motors Position | 8 packets | 1 packet | 1 packet | 8x faster |
+| 8 Motors State Read | 24 packets | 6 packets | 1 packet | 24x faster |
+
+**Sync Operations** provide the highest efficiency by using a single packet for all operations, making them ideal for real-time control applications.
 
 ### Best Practices
 
-1. **Use bulk operations** for multi-motor control
-2. **Configure motors once** at startup
-3. **Read states in bulk** when possible
-4. **Handle errors gracefully** with try/except blocks
-5. **Always close the interface** when done
+1. **Use sync operations** for maximum efficiency in real-time control
+2. **Use bulk operations** for multi-motor control when sync is not available
+3. **Configure motors once** at startup
+4. **Read states in bulk** when possible
+5. **Handle errors gracefully** with try/except blocks
+6. **Always close the interface** when done
 
 ## Troubleshooting
 
