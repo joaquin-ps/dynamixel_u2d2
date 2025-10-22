@@ -58,6 +58,7 @@ setup(
             "dynamixel-change-baud=helpers.change_baud:main",
             "dynamixel-change-id=helpers.change_id:main",
             "dynamixel-port=helpers.u2d2_port_timer:main",
+            "dynamixel-echo=helpers.echo_encoder:main",
         ],
     },
     include_package_data=True,
@@ -70,8 +71,7 @@ setup(
     },
     keywords="dynamixel u2d2 robotics motor control bulk operations",
     # project_urls={
-    #     "Bug Reports": "https://github.com/your-username/dynamixel-u2d2/issues",
-    #     "Source": "https://github.com/your-username/dynamixel-u2d2",
-    #     "Documentation": "https://github.com/your-username/dynamixel-u2d2#readme",
+    #     "Source": "https://github.com/joaquin-ps/dynamixel_u2d2",
+    #     "Documentation": "https://github.com/joaquin-ps/dynamixel_u2d2#readme",
     # },
 )

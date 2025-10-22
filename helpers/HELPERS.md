@@ -5,10 +5,11 @@ These scripts provide easy-to-use command-line tools for scanning, changing baud
 ## Quick Start
 
 1. **Install the package**: `pip install -e .` (from the project root)
-2. **Configure U2D2 ports**: `python3 u2d2_port_simple.py`
-3. **Scan for motors**: `python3 scan_dynamixel.py`
-4. **Change baud rates**: `python3 change_baud.py --new-baud 4000000`
-5. **Change motor IDs**: `python3 change_id.py --baud 4000000 --current-ids 1,2,3 --new-ids 10,11,12`
+2. **Configure U2D2 ports**: `dynamixel-port --latency-timer 2`
+3. **Scan for motors**: `dynamixel-scan`
+4. **Change baud rates**: `dynamixel-change-baud --new-baud 4000000`
+5. **Change motor IDs**: `dynamixel-change-id --baud 4000000 --current-ids 1,2,3 --new-ids 10,11,12`
+6. **Monitor positions**: `dynamixel-echo --baud 3000000 --motor-ids 1,2,3`
 
 ---
 
@@ -103,26 +104,32 @@ Proceed with changing latency timer to 2ms? (y/n): y
 
 ```bash
 # Scan all motors at all baud rates
-python scan_dynamixel.py
+dynamixel-scan
 
 # Scan with custom port
-python scan_dynamixel.py --port /dev/ttyUSB1
+dynamixel-scan --port /dev/ttyUSB1
 
 # Quiet mode (minimal output)
-python scan_dynamixel.py --quiet
+dynamixel-scan --quiet
+
+# Alternative: Run directly from helpers directory
+python3 scan_dynamixel.py
 ```
 
 ### Advanced Options
 
 ```bash
 # Scan only specific baud rates
-python scan_dynamixel.py --scan-bauds 3000000,4000000
+dynamixel-scan --scan-bauds 3000000,4000000
 
 # Scan only specific motor ID range
-python scan_dynamixel.py --scan-id-range 1,10
+dynamixel-scan --scan-id-range 1,10
 
 # Combine options
-python scan_dynamixel.py --scan-bauds 3000000,4000000 --scan-id-range 1,20 --port /dev/ttyUSB1
+dynamixel-scan --scan-bauds 3000000,4000000 --scan-id-range 1,20 --port /dev/ttyUSB1
+
+# Alternative: Run directly from helpers directory
+python3 scan_dynamixel.py --scan-bauds 3000000,4000000
 ```
 
 ### Command Line Options
@@ -166,26 +173,32 @@ python scan_dynamixel.py --scan-bauds 3000000,4000000 --scan-id-range 1,20 --por
 
 ```bash
 # Scan all motors and change to 4000000 baud
-python change_baud.py --new-baud 4000000
+dynamixel-change-baud --new-baud 4000000
 
 # Change specific motors with known baud rate (no scanning)
-python change_baud.py --new-baud 4000000 --old-baud 3000000 --motor-ids 1,2,3
+dynamixel-change-baud --new-baud 4000000 --old-baud 3000000 --motor-ids 1,2,3
 
 # Scan only at specific baud rate and change all found motors
-python change_baud.py --new-baud 4000000 --old-baud 3000000
+dynamixel-change-baud --new-baud 4000000 --old-baud 3000000
+
+# Alternative: Run directly from helpers directory
+python3 change_baud.py --new-baud 4000000
 ```
 
 ### Advanced Options
 
 ```bash
 # Scan specific baud rates and change all found motors
-python change_baud.py --new-baud 4000000 --scan-bauds 3000000,1000000
+dynamixel-change-baud --new-baud 4000000 --scan-bauds 3000000,1000000
 
 # Scan specific ID range and change all found motors
-python change_baud.py --new-baud 4000000 --scan-id-range 1,10
+dynamixel-change-baud --new-baud 4000000 --scan-id-range 1,10
 
 # Skip confirmation prompt (use with caution)
-python change_baud.py --new-baud 4000000 --yes
+dynamixel-change-baud --new-baud 4000000 --yes
+
+# Alternative: Run directly from helpers directory
+python3 change_baud.py --new-baud 4000000 --scan-bauds 3000000,1000000
 ```
 
 ### Command Line Options
@@ -251,23 +264,29 @@ Successfully changed: 2/2 motors
 
 ```bash
 # Change motor IDs 1,2,3 to 10,11,12 at 3000000 baud
-python change_id.py --baud 3000000 --current-ids 1,2,3 --new-ids 10,11,12
+dynamixel-change-id --baud 3000000 --current-ids 1,2,3 --new-ids 10,11,12
 
 # Change single motor ID 1 to 5 at 4000000 baud
-python change_id.py --baud 4000000 --current-ids 1 --new-ids 5
+dynamixel-change-id --baud 4000000 --current-ids 1 --new-ids 5
 
 # Skip confirmation prompt
-python change_id.py --baud 3000000 --current-ids 1,2 --new-ids 10,11 --yes
+dynamixel-change-id --baud 3000000 --current-ids 1,2 --new-ids 10,11 --yes
+
+# Alternative: Run directly from helpers directory
+python3 change_id.py --baud 3000000 --current-ids 1,2,3 --new-ids 10,11,12
 ```
 
 ### Advanced Options
 
 ```bash
 # Use custom port
-python change_id.py --baud 3000000 --current-ids 1,2 --new-ids 10,11 --port /dev/ttyUSB1
+dynamixel-change-id --baud 3000000 --current-ids 1,2 --new-ids 10,11 --port /dev/ttyUSB1
 
 # Quiet mode
-python change_id.py --baud 3000000 --current-ids 1 --new-ids 5 --quiet
+dynamixel-change-id --baud 3000000 --current-ids 1 --new-ids 5 --quiet
+
+# Alternative: Run directly from helpers directory
+python3 change_id.py --baud 3000000 --current-ids 1,2 --new-ids 10,11 --port /dev/ttyUSB1
 ```
 
 ### Command Line Options
@@ -336,6 +355,99 @@ Successfully changed: 3/3 motors
 | "Invalid baud rate" | Use supported baud rates only |
 | "Duplicate IDs" | Ensure all IDs are unique |
 | "Overlapping IDs" | Current and new IDs must be different |
+
+---
+
+## 📊 echo_encoder.py
+
+**Purpose**: Continuously monitor and display Dynamixel motor encoder positions.
+
+### Basic Usage
+
+```bash
+# Monitor positions for motors 1,2,3 at 3000000 baud
+dynamixel-echo --baud 3000000 --motor-ids 1,2,3
+
+# Monitor single motor at 4000000 baud
+dynamixel-echo --baud 4000000 --motor-ids 1
+
+# Use custom port
+dynamixel-echo --baud 3000000 --motor-ids 1,2 --port /dev/ttyUSB1
+```
+
+### Advanced Options
+
+```bash
+# Quiet mode (minimal output)
+dynamixel-echo --baud 3000000 --motor-ids 1,2,3 --quiet
+
+# Alternative: Run directly from helpers directory
+python3 echo_encoder.py --baud 3000000 --motor-ids 1,2,3
+```
+
+### Command Line Options
+
+| Option | Description | Required | Default |
+|--------|-------------|----------|---------|
+| `--baud` | Communication baud rate | ✅ Yes | - |
+| `--motor-ids` | Comma-separated motor IDs to monitor | ✅ Yes | - |
+| `--port` | USB port path | No | /dev/ttyUSB0 |
+| `--verbose` | Enable verbose output | No | True |
+| `--quiet` | Suppress verbose output | No | False |
+
+### Features
+
+- ✅ Continuously displays motor encoder positions
+- ✅ Automatically disables torque for safety
+- ✅ Real-time position monitoring with screen clearing
+- ✅ Graceful shutdown with Ctrl+C
+- ✅ Error handling for communication failures
+- ✅ Validates motor IDs and baud rates
+- ✅ Supports multiple motors simultaneously
+
+### Example Output
+
+```
+🔍 Verifying connection to 3 motor(s)...
+✅ Motor 1: Connected (position: 2048)
+✅ Motor 2: Connected (position: 1024)
+✅ Motor 3: Connected (position: 3072)
+🔒 Ensuring torque is disabled for all motors...
+✅ Motor 1: Torque disabled
+✅ Motor 2: Torque disabled
+✅ Motor 3: Torque disabled
+✅ All motors connected and ready for position monitoring
+
+============================================================
+📊 CONTINUOUS POSITION MONITORING
+============================================================
+Press Ctrl+C to stop
+============================================================
+
+📊 Dynamixel Encoder Echo
+Port: /dev/ttyUSB0 | Baud: 3000000
+Motors: 1, 2, 3
+============================================================
+Motor  1: Position =   2048
+Motor  2: Position =   1024
+Motor  3: Position =   3072
+============================================================
+Press Ctrl+C to stop
+```
+
+### Safety Features
+
+- **Torque Disabled**: All motors have torque disabled for safety
+- **Read-Only**: Only reads positions, never sends commands
+- **Error Handling**: Gracefully handles communication errors
+- **Graceful Shutdown**: Clean exit with Ctrl+C
+
+### Use Cases
+
+- **Debugging**: Monitor motor positions during development
+- **Calibration**: Verify encoder readings and ranges
+- **Testing**: Check motor communication and responsiveness
+- **Monitoring**: Real-time position tracking for analysis
 
 ---
 

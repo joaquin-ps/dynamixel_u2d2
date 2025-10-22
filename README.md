@@ -1,6 +1,6 @@
 # U2D2 Interface Documentation
 
-A high-level interface for controlling Dynamixel motors through the U2D2 communication bridge, with support for both individual motor operations and efficient bulk operations.
+A high-level interface for controlling Dynamixel motors through the U2D2 communication bridge, with support for both individual motor operations and efficient sync/bulk operations.
 
 **🔧 Helper Scripts**: For quick motor management tasks like scanning, changing baud rates, and changing motor IDs, see the [Helper Scripts documentation](helpers/HELPERS.md).
 
@@ -10,12 +10,16 @@ Tested on: Ubuntu 22.04
 
 Before using the U2D2 interface, make sure your U2D2 device is properly configured:
 
-1. **Check U2D2 Connection**: Run the provided setup script to verify connection and configure USB latency:
+1. **Check U2D2 Connection**: Use the port management tool to verify connection and configure USB latency:
    ```bash
-   source u2d2_port.sh
+   # After installing the package (pip install -e .)
+   dynamixel-port --latency-timer 2
+   
+   # Or run directly from helpers directory (before installation)
+   python3 helpers/u2d2_port_timer.py --latency-timer 2
    ```
-   This script will:
-   - Check if `/dev/ttyUSB0` is connected
+   This tool will:
+   - Check if U2D2 ports are connected
    - Display current USB latency timer
    - Allow you to set optimal latency (default: 2ms)
 
@@ -54,11 +58,13 @@ The `U2D2Interface` class provides a comprehensive interface for controlling Dyn
 
 ## Helper Scripts
 
-For users who need quick motor management tasks without writing Python code, this package includes three powerful command-line helper scripts:
+For users who need quick motor management tasks without writing Python code, this package includes useful command-line helper scripts:
 
-- **`scan_dynamixel.py`**: Scan for motors at different baud rates and ID ranges
-- **`change_baud.py`**: Change motor baud rates with flexible scanning options
-- **`change_id.py`**: Change motor IDs with validation and confirmation
+- **`dynamixel-scan`**: Scan for motors at different baud rates and ID ranges
+- **`dynamixel-change-baud`**: Change motor baud rates with flexible scanning options
+- **`dynamixel-change-id`**: Change motor IDs with validation and confirmation
+- **`dynamixel-echo`**: Continuously monitor motor encoder positions
+- **`dynamixel-port`**: Configure U2D2 port latency settings
 
 These scripts provide a user-friendly interface for common Dynamixel management tasks and are perfect for:
 - Initial motor setup and configuration
