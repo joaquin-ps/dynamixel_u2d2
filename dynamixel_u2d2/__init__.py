@@ -18,6 +18,7 @@ Example:
 """
 
 from .u2d2_interface import U2D2Interface
+from .fake_u2d2_interface import FakeU2D2Interface
 
 __version__ = "1.0.0"
 __author__ = "Finger Aloha Team"
@@ -25,4 +26,5 @@ __email__ = "jbp2157@columbia.edu"
 
 __all__ = [
     "U2D2Interface",
+    "FakeU2D2Interface",
 ]

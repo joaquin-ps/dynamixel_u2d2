@@ -1,6 +1,6 @@
 # U2D2 Interface Documentation
 
-A high-level interface for controlling Dynamixel motors through the U2D2 communication bridge, with support for both individual motor operations and efficient sync/bulk operations.
+A high-level interface for controlling Dynamixel motors through the U2D2 communication bridge, with support for both individual motor operations and efficient sync/bulk operations. Includes a fake interface for testing without hardware.
 
 **🔧 Helper Scripts**: For quick motor management tasks like scanning, changing baud rates, and changing motor IDs, see the [Helper Scripts documentation](helpers/HELPERS.md).
 
@@ -55,6 +55,7 @@ The `U2D2Interface` class provides a comprehensive interface for controlling Dyn
 - **Type Safety**: Full type hints and validation
 - **Error Handling**: Comprehensive error reporting
 - **Flexible**: Support for all Dynamixel X-series control modes
+- **Testing Support**: Fake interface for hardware-free testing
 
 ## Helper Scripts
 
@@ -116,6 +117,75 @@ position = u2d2.get_position(11)  # Read current position
 # Cleanup
 u2d2.close()
 ```
+
+## Testing Without Hardware
+
+The package includes a `FakeU2D2Interface` for testing and development without physical hardware. This is perfect for algorithm development, testing, and debugging.
+
+### Using FakeU2D2Interface
+
+```python
+from dynamixel_u2d2 import FakeU2D2Interface
+
+# Initialize fake interface
+fake_u2d2 = FakeU2D2Interface(
+    usb_port="/dev/ttyUSB_fake",  # Ignored for fake interface
+    baudrate=4000000,             # Ignored for fake interface
+    motor_ids=[11, 12, 111, 112], # Motor IDs to simulate
+    verbose=True                  # Enable verbose output
+)
+
+# Use exactly like real U2D2Interface
+fake_u2d2.disable_torque(11)
+fake_u2d2.set_motor_mode(11, 'position')
+fake_u2d2.set_position_p_gain(11, 100)
+fake_u2d2.enable_torque(11)
+
+# Control motors (simulated)
+fake_u2d2.set_goal_position(11, 2048)
+position = fake_u2d2.get_position(11)  # Returns simulated position
+
+# Sync operations work identically
+fake_u2d2.init_group_sync_read([11, 12])
+positions, velocities, currents = fake_u2d2.sync_read_state()
+
+# Cleanup
+fake_u2d2.close()
+```
+
+### Fake Interface Features
+
+- **Realistic Simulation**: Simulates motor behavior with position, velocity, and current responses
+- **Full API Compatibility**: Identical interface to `U2D2Interface`
+- **Motor Behavior Simulation**: Simple proportional control simulation for position mode
+- **Current Mode Support**: Simulates current control with position drift
+- **Testing Utilities**: Methods to manually set motor states for testing
+- **Verbose Logging**: Detailed output of all operations when enabled
+
+### Testing Utilities
+
+The fake interface includes special methods for testing:
+
+```python
+# Manually set motor state for testing
+fake_u2d2.set_motor_state(11, position=2048, velocity=0, current=100)
+
+# Get current motor state
+state = fake_u2d2.get_motor_state(11)
+print(f"Motor 11 state: {state}")
+
+# Simulate motor scanning
+detected_motors = fake_u2d2.scan_motors_at_baudrate(4000000)
+print(f"Detected motors: {detected_motors}")
+```
+
+### When to Use Fake Interface
+
+- **Algorithm Development**: Test control algorithms without hardware
+- **Unit Testing**: Write tests that don't require physical motors
+- **Debugging**: Isolate software issues from hardware problems
+- **CI/CD**: Run automated tests in environments without hardware
+- **Documentation**: Create examples that work without hardware setup
 
 ## API Reference
 
@@ -631,6 +701,41 @@ finally:
     u2d2.close()
 ```
 
+### Testing with Fake Interface
+
+```python
+from dynamixel_u2d2 import FakeU2D2Interface
+
+# Initialize fake interface for testing
+motor_ids = [11, 12, 111, 112]
+fake_u2d2 = FakeU2D2Interface('/dev/ttyUSB_fake', baudrate=4000000, motor_ids=motor_ids, verbose=True)
+
+try:
+    # Setup motors (simulated)
+    for motor_id in motor_ids:
+        fake_u2d2.disable_torque(motor_id)
+        fake_u2d2.set_motor_mode(motor_id, 'position')
+        fake_u2d2.set_position_p_gain(motor_id, 100)
+        fake_u2d2.enable_torque(motor_id)
+    
+    # Test sync operations (simulated)
+    positions = [2048, 1500, 2048, 1500]
+    fake_u2d2.sync_write_positions(positions)
+    
+    # Read simulated states
+    positions, velocities, currents = fake_u2d2.sync_read_state()
+    for i, motor_id in enumerate(motor_ids):
+        print(f"Motor {motor_id}: Pos={positions[i]}, Vel={velocities[i]}, Curr={currents[i]}")
+    
+    # Test individual motor control
+    fake_u2d2.set_goal_position(11, 1000)
+    position = fake_u2d2.get_position(11)
+    print(f"Motor 11 position: {position}")
+        
+finally:
+    fake_u2d2.close()
+```
+
 ## Error Handling
 
 The interface provides comprehensive error handling:
@@ -677,13 +782,18 @@ The interface provides comprehensive error handling:
 2. **Permission denied**: Add user to dialout group
 3. **Motor not responding**: Verify motor ID and connections
 4. **Bulk operations failing**: Check for duplicate motor IDs in same operation
+5. **Testing without hardware**: Use `FakeU2D2Interface` for development and testing
 
 ### Debug Mode
 
 Enable verbose output for debugging:
 
 ```python
+# Real interface
 u2d2 = U2D2Interface('/dev/ttyUSB0', verbose=True)
+
+# Fake interface (for testing)
+fake_u2d2 = FakeU2D2Interface('/dev/ttyUSB_fake', verbose=True)
 ```
 
-This will print detailed information about all operations.
+This will print detailed information about all operations. The fake interface is particularly useful for debugging control algorithms without hardware.

@@ -20,6 +20,7 @@ from dynamixel_sdk import (
     GroupBulkWrite,
     COMM_SUCCESS
 )
+from .base_interface import BaseInterface, MotorMode
 
 # ============================================================================
 # CONTROL TABLE ADDRESSES AND CONSTANTS
@@ -78,11 +79,7 @@ BAUDRATE_MAP = {
 # Common baud rates
 SCAN_BAUDRATES = [9600, 57600, 115200, 1000000, 2000000, 3000000, 4000000]
 
-# Motor mode types for type hints
-MotorMode = Literal['position', 'current'] # TODO: Add support for current_based_position, velocity, extended_position, pwm control modes
-
-
-class U2D2Interface:
+class U2D2Interface(BaseInterface):
     """
     U2D2 Interface with sync read/write support for Dynamixel motors.
     
@@ -107,11 +104,7 @@ class U2D2Interface:
             protocol_version: Dynamixel protocol version (usually 2.0)
             verbose: Print verbose output (default: False)
         """
-        self.usb_port = usb_port
-        self.baudrate = baudrate
-        self.motor_ids = motor_ids
-        self.protocol_version = protocol_version
-        self.verbose = verbose
+        super().__init__(usb_port, baudrate, motor_ids, protocol_version, verbose)
 
         # Hardware interfaces
         self._portHandler = PortHandler(self.usb_port)
@@ -574,7 +567,7 @@ class U2D2Interface:
         positions = {}
         for motor_id in motor_ids:
             data = results.get((motor_id, ADDR_PRESENT_POSITION), b'\x00\x00\x00\x00')
-            positions[motor_id] = self.parse_position(data)
+            positions[motor_id] = self._parse_position(data)
         
         return positions
     
@@ -594,7 +587,7 @@ class U2D2Interface:
         velocities = {}
         for motor_id in motor_ids:
             data = results.get((motor_id, ADDR_PRESENT_VELOCITY), b'\x00\x00\x00\x00')
-            velocities[motor_id] = self.parse_velocity(data)
+            velocities[motor_id] = self._parse_velocity(data)
         
         return velocities
     
@@ -614,7 +607,7 @@ class U2D2Interface:
         currents = {}
         for motor_id in motor_ids:
             data = results.get((motor_id, ADDR_PRESENT_CURRENT), b'\x00\x00')
-            currents[motor_id] = self.parse_current(data)
+            currents[motor_id] = self._parse_current(data)
         
         return currents
     
@@ -668,15 +661,15 @@ class U2D2Interface:
             return value
         return 0
     
-    def parse_position(self, data: bytes) -> int:
+    def _parse_position(self, data: bytes) -> int:
         """Parse 4-byte position data."""
         return self._parse_4byte_signed(data)
     
-    def parse_velocity(self, data: bytes) -> int:
+    def _parse_velocity(self, data: bytes) -> int:
         """Parse 4-byte velocity data."""
         return self._parse_4byte_signed(data)
     
-    def parse_current(self, data: bytes) -> int:
+    def _parse_current(self, data: bytes) -> int:
         """Parse 2-byte current data."""
         return self._parse_2byte_signed(data)
     
