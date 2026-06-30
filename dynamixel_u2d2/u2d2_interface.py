@@ -65,6 +65,10 @@ STATE_ADDRESS_MAP = {
 ADDR_ALL_STATES = ADDR_PRESENT_CURRENT
 LEN_ALL_STATES = LEN_PRESENT_CURRENT + LEN_PRESENT_VELOCITY + LEN_PRESENT_POSITION # 10 bytes total
 
+# Present velocity + position are contiguous (128..135); skip present current (126..127).
+ADDR_POS_VEL = ADDR_PRESENT_VELOCITY
+LEN_POS_VEL = LEN_PRESENT_VELOCITY + LEN_PRESENT_POSITION  # 8 bytes total
+
 # Baudrate mapping for Dynamixel X-series
 BAUDRATE_MAP = {
     9600: 0,
@@ -112,6 +116,7 @@ class U2D2Interface(BaseInterface):
 
         # Group handlers
         self._groupSyncRead = None
+        self._groupSyncReadPosVel = None
         self._groupSyncReadSpecific = None
         self._groupSyncWritePosition = None
         self._groupSyncWriteCurrent = None
@@ -308,6 +313,62 @@ class U2D2Interface(BaseInterface):
                 positions.append(None)
         
         return positions, velocities, currents
+
+    def init_group_sync_read_pos_vel(self, motor_ids: List[int]):
+        """Initialize group sync read for present velocity + position (8 bytes per motor)."""
+        self._groupSyncReadPosVel = GroupSyncRead(
+            self._portHandler,
+            self._packetHandler,
+            ADDR_POS_VEL,
+            LEN_POS_VEL,
+        )
+
+        for motor_id in motor_ids:
+            if not self._groupSyncReadPosVel.addParam(motor_id):
+                raise Exception(
+                    f"[U2D2Interface] Failed to add pos_vel sync read parameter for motor {motor_id}"
+                )
+
+    def sync_read_pos_vel(self) -> Tuple[List[int], List[int]]:
+        """Sync read present velocity and position in one packet (no present current)."""
+
+        if self._groupSyncReadPosVel is None:
+            raise RuntimeError(
+                "Pos+vel sync read not configured. Call init_group_sync_read_pos_vel() first."
+            )
+
+        dxl_comm_result = self._groupSyncReadPosVel.txRxPacket()
+        if dxl_comm_result != COMM_SUCCESS:
+            self._log(f"❌ Sync read pos_vel error: {dxl_comm_result}")
+            raise RuntimeError(f"Sync read pos_vel error: {dxl_comm_result}")
+
+        positions = []
+        velocities = []
+
+        for motor_id in self.motor_ids:
+            if self._groupSyncReadPosVel.isAvailable(
+                motor_id, ADDR_PRESENT_VELOCITY, LEN_PRESENT_VELOCITY
+            ):
+                unsigned_raw = self._groupSyncReadPosVel.getData(
+                    motor_id, ADDR_PRESENT_VELOCITY, LEN_PRESENT_VELOCITY
+                )
+                value = self._to_signed(unsigned_raw, 8 * LEN_PRESENT_VELOCITY)
+                velocities.append(value)
+            else:
+                velocities.append(None)
+
+            if self._groupSyncReadPosVel.isAvailable(
+                motor_id, ADDR_PRESENT_POSITION, LEN_PRESENT_POSITION
+            ):
+                unsigned_raw = self._groupSyncReadPosVel.getData(
+                    motor_id, ADDR_PRESENT_POSITION, LEN_PRESENT_POSITION
+                )
+                value = self._to_signed(unsigned_raw, 8 * LEN_PRESENT_POSITION)
+                positions.append(value)
+            else:
+                positions.append(None)
+
+        return positions, velocities
     
     # ============================================================================
     # SYNC WRITE OPERATIONS

@@ -179,6 +179,30 @@ class FakeU2D2Interface(BaseInterface):
             currents.append(int(state['current']))
         
         return positions, velocities, currents
+
+    def init_group_sync_read_pos_vel(self, motor_ids: List[int]):
+        """Initialize group sync read for present velocity + position (8 bytes per motor)."""
+        for motor_id in motor_ids:
+            if motor_id not in self._motor_states:
+                self._initialize_motor_state(motor_id)
+        self._verbose_log(f"✅ Fake pos_vel sync read initialized for motors: {motor_ids}")
+
+    def sync_read_pos_vel(self) -> Tuple[List[int], List[int]]:
+        """Sync read present velocity and position in one packet (no present current)."""
+        if self.motor_ids is None:
+            raise RuntimeError("Pos+vel sync read not configured. Initialize with motor_ids.")
+
+        self._simulate_motor_behavior()
+
+        positions = []
+        velocities = []
+
+        for motor_id in self.motor_ids:
+            state = self._motor_states.get(motor_id, {'position': 0, 'velocity': 0, 'current': 0})
+            positions.append(int(state['position']))
+            velocities.append(int(state['velocity']))
+
+        return positions, velocities
     
     # ============================================================================
     # SYNC WRITE OPERATIONS

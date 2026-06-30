@@ -295,6 +295,27 @@ for i, motor_id in enumerate([11, 12, 111, 112]):
     print(f"Motor {motor_id}: Pos={positions[i]}, Vel={velocities[i]}, Curr={currents[i]}")
 ```
 
+#### `init_group_sync_read_pos_vel(motor_ids: List[int])`
+Initialize group sync read for present velocity + position only (8 bytes per motor, one bus packet).
+
+Use when you need hardware velocity (e.g. force-rendering damping) but not present current.
+
+**Example:**
+```python
+u2d2.init_group_sync_read_pos_vel([11, 12, 111, 112])
+```
+
+#### `sync_read_pos_vel() -> Tuple[List[int], List[int]]`
+Sync read present velocity and position of all configured motors (no present current).
+
+**Returns:**
+- `Tuple[List[int], List[int]]`: Tuple of (positions, velocities)
+
+**Example:**
+```python
+positions, velocities = u2d2.sync_read_pos_vel()
+```
+
 #### `sync_write_positions(positions: List[int])`
 Sync write position commands to all configured motors.
 

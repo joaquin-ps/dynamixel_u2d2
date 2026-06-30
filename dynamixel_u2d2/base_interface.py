@@ -98,6 +98,16 @@ class BaseInterface(ABC):
     def sync_read_state(self) -> Tuple[List[int], List[int], List[int]]:
         """Sync read the full state (position, velocity, current) of all motors."""
         pass
+
+    @abstractmethod
+    def init_group_sync_read_pos_vel(self, motor_ids: List[int]):
+        """Initialize group sync read for present velocity + position (8 bytes per motor)."""
+        pass
+
+    @abstractmethod
+    def sync_read_pos_vel(self) -> Tuple[List[int], List[int]]:
+        """Sync read present velocity and position in one packet (no present current)."""
+        pass
     
     # ============================================================================
     # SYNC WRITE OPERATIONS
