@@ -28,7 +28,7 @@ def read_requirements():
 setup(
     name="dynamixel-u2d2",
     version="1.0.0",
-    author="Finger Aloha Team",
+    author="Ditto Team",
     author_email="your-email@example.com",
     description="A clean, high-level interface for controlling Dynamixel motors through the U2D2 communication bridge",
     long_description=read_readme(),
