@@ -444,10 +444,18 @@ class FakeU2D2Interface(BaseInterface):
         self._velocity_limits[motor_id] = velocity_limit
         self._verbose_log(f"✅ Fake velocity limit {velocity_limit} set for motor {motor_id}")
     
-    def set_current_limit(self, motor_id: int, limit_mA: int):
-        """Set the current limit for a single motor."""
-        self._current_limits[motor_id] = limit_mA
-        self._verbose_log(f"✅ Fake current limit {limit_mA} set for motor {motor_id}")
+    def set_current_limit(self, motor_id: int, limit_raw: int):
+        """Set Current Limit, in raw register units."""
+        self._current_limits[motor_id] = limit_raw
+        self._verbose_log(f"✅ Fake current limit {limit_raw} set for motor {motor_id}")
+
+    def get_current_limit(self, motor_id: int) -> Optional[int]:
+        """Return Current Limit in raw register units, or None if never set."""
+        return self._current_limits.get(motor_id)
+
+    def get_model_number(self, motor_id: int) -> Optional[int]:
+        """The fake motor has no model identity."""
+        return None
     
     def get_position(self, motor_id: int) -> int:
         """Return the current position of a motor."""

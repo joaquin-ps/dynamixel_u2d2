@@ -282,8 +282,18 @@ class BaseInterface(ABC):
         pass
     
     @abstractmethod
-    def set_current_limit(self, motor_id: int, limit_mA: int):
-        """Set the current limit for a single motor."""
+    def set_current_limit(self, motor_id: int, limit_raw: int):
+        """Set Current Limit, in raw register units."""
+        pass
+
+    @abstractmethod
+    def get_current_limit(self, motor_id: int) -> Optional[int]:
+        """Return Current Limit in raw register units, or None if never set (fake only)."""
+        pass
+
+    @abstractmethod
+    def get_model_number(self, motor_id: int) -> Optional[int]:
+        """Return the motor's model number, or None if unknown (fake only)."""
         pass
     
     @abstractmethod

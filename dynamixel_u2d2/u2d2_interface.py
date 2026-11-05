@@ -27,6 +27,7 @@ from .base_interface import BaseInterface, MotorMode
 # ============================================================================
 
 # Control table addresses for X-series motors
+ADDR_MODEL_NUMBER = 0
 ADDR_ID = 7
 ADDR_BAUD_RATE = 8
 ADDR_OPERATING_MODE = 11
@@ -173,8 +174,7 @@ class U2D2Interface(BaseInterface):
         dxl_comm_result, dxl_error = self._packetHandler.write1ByteTxRx(
             self._portHandler, motor_id, ADDR_TORQUE_ENABLE, 1
         )
-        if dxl_comm_result != COMM_SUCCESS:
-            self._log(f"❌ Torque Enable Error ({motor_id}): {self._packetHandler.getTxRxResult(dxl_comm_result)}")
+        self._check_result(f"Torque Enable Error ({motor_id})", dxl_comm_result, dxl_error)
     
     def disable_torque(self, motor_id: int):
         """Disable torque on the specified motor."""
@@ -195,10 +195,8 @@ class U2D2Interface(BaseInterface):
         dxl_comm_result, dxl_error = self._packetHandler.write1ByteTxRx(
             self._portHandler, motor_id, ADDR_OPERATING_MODE, mode
         )
-        if dxl_comm_result != COMM_SUCCESS:
-            self._log(f"❌ Failed to set mode for motor {motor_id}")
-        else:
-            self._verbose_log(f"✅ Set motor {motor_id} to mode {mode}")
+        self._check_result(f"Failed to set mode for motor {motor_id}", dxl_comm_result, dxl_error)
+        self._verbose_log(f"✅ Set motor {motor_id} to mode {mode}")
     
     def set_motor_mode(self, motor_id: int, mode: MotorMode):
         """
@@ -230,30 +228,24 @@ class U2D2Interface(BaseInterface):
         dxl_comm_result, dxl_error = self._packetHandler.write2ByteTxRx(
             self._portHandler, motor_id, ADDR_POSITION_P_GAIN, p_gain
         )
-        if dxl_comm_result != COMM_SUCCESS:
-            self._log(f"❌ Failed to set P-Gain for motor {motor_id}")
-        else:
-            self._verbose_log(f"✅ Set P-Gain {p_gain} for motor {motor_id}")
+        self._check_result(f"Failed to set P-Gain for motor {motor_id}", dxl_comm_result, dxl_error)
+        self._verbose_log(f"✅ Set P-Gain {p_gain} for motor {motor_id}")
     
     def set_position_i_gain(self, motor_id: int, i_gain: int):
         """Set the Position I Gain for a single motor."""
         dxl_comm_result, dxl_error = self._packetHandler.write2ByteTxRx(
             self._portHandler, motor_id, ADDR_POSITION_I_GAIN, i_gain
         )
-        if dxl_comm_result != COMM_SUCCESS:
-            self._log(f"❌ Failed to set I-Gain for motor {motor_id}")
-        else:
-            self._verbose_log(f"✅ Set I-Gain {i_gain} for motor {motor_id}")
+        self._check_result(f"Failed to set I-Gain for motor {motor_id}", dxl_comm_result, dxl_error)
+        self._verbose_log(f"✅ Set I-Gain {i_gain} for motor {motor_id}")
     
     def set_position_d_gain(self, motor_id: int, d_gain: int):
         """Set the Position D Gain for a single motor."""
         dxl_comm_result, dxl_error = self._packetHandler.write2ByteTxRx(
             self._portHandler, motor_id, ADDR_POSITION_D_GAIN, d_gain
         )
-        if dxl_comm_result != COMM_SUCCESS:
-            self._log(f"❌ Failed to set D-Gain for motor {motor_id}")
-        else:
-            self._verbose_log(f"✅ Set D-Gain {d_gain} for motor {motor_id}")
+        self._check_result(f"Failed to set D-Gain for motor {motor_id}", dxl_comm_result, dxl_error)
+        self._verbose_log(f"✅ Set D-Gain {d_gain} for motor {motor_id}")
     
     # ============================================================================
     # SYNC BASE OPERATIONS
@@ -743,35 +735,46 @@ class U2D2Interface(BaseInterface):
         dxl_comm_result, dxl_error = self._packetHandler.write4ByteTxRx(
             self._portHandler, motor_id, ADDR_GOAL_POSITION, goal
         )
-        if dxl_comm_result != COMM_SUCCESS:
-            self._log(f"❌ Command Position Error ({motor_id}): {self._packetHandler.getTxRxResult(dxl_comm_result)}")
+        self._check_result(f"Command Position Error ({motor_id})", dxl_comm_result, dxl_error)
     
     def set_goal_current(self, motor_id: int, current: int):
         """Set the goal current for a single motor."""
         dxl_comm_result, dxl_error = self._packetHandler.write2ByteTxRx(
             self._portHandler, motor_id, ADDR_GOAL_CURRENT, int(current)
         )
-        if dxl_comm_result != COMM_SUCCESS:
-            self._log(f"❌ Failed to set goal current for motor {motor_id}")
+        self._check_result(f"Failed to set goal current for motor {motor_id}", dxl_comm_result, dxl_error)
     
     def set_velocity_limit(self, motor_id: int, velocity_limit: int):
         """Set the profile velocity limit for a single motor."""
         dxl_comm_result, dxl_error = self._packetHandler.write4ByteTxRx(
             self._portHandler, motor_id, ADDR_PROFILE_VELOCITY, velocity_limit
         )
-        if dxl_comm_result != COMM_SUCCESS:
-            self._log(f"❌ Set Velocity Limit Error ({motor_id}): {self._packetHandler.getTxRxResult(dxl_comm_result)}")
+        self._check_result(f"Set Velocity Limit Error ({motor_id})", dxl_comm_result, dxl_error)
     
-    def set_current_limit(self, motor_id: int, limit_mA: int):
-        """Set the current limit for a single motor."""
+    def set_current_limit(self, motor_id: int, limit_raw: int):
+        """Set Current Limit (EEPROM; torque must be off), in raw register units."""
         dxl_comm_result, dxl_error = self._packetHandler.write2ByteTxRx(
-            self._portHandler, motor_id, ADDR_CURRENT_LIMIT, limit_mA
+            self._portHandler, motor_id, ADDR_CURRENT_LIMIT, limit_raw
         )
-        if dxl_comm_result != COMM_SUCCESS:
-            self._log(f"❌ Failed to set current limit for motor {motor_id}")
-        else:
-            self._verbose_log(f"✅ Set current limit {limit_mA}LSB for motor {motor_id}")
+        self._check_result(f"Failed to set current limit for motor {motor_id}", dxl_comm_result, dxl_error)
+        self._verbose_log(f"✅ Set current limit {limit_raw}LSB for motor {motor_id}")
     
+    def get_current_limit(self, motor_id: int) -> int:
+        """Return Current Limit in raw register units."""
+        value, dxl_comm_result, dxl_error = self._packetHandler.read2ByteTxRx(
+            self._portHandler, motor_id, ADDR_CURRENT_LIMIT
+        )
+        self._check_result(f"Get Current Limit Error ({motor_id})", dxl_comm_result, dxl_error)
+        return value
+
+    def get_model_number(self, motor_id: int) -> int:
+        """Return the model number the motor reports."""
+        value, dxl_comm_result, dxl_error = self._packetHandler.read2ByteTxRx(
+            self._portHandler, motor_id, ADDR_MODEL_NUMBER
+        )
+        self._check_result(f"Get Model Number Error ({motor_id})", dxl_comm_result, dxl_error)
+        return value
+
     def get_position(self, motor_id: int) -> int:
         """Return the current position of a motor."""
         dxl_present_position, dxl_comm_result, dxl_error = self._packetHandler.read4ByteTxRx(
@@ -1095,6 +1098,18 @@ class U2D2Interface(BaseInterface):
     def _to_unsigned_16bit(self, signed_value: int) -> int:
         """Convert a signed integer to unsigned 16-bit for writing to 16-bit registers."""
         return (1 << 16) + signed_value if signed_value < 0 else signed_value
+
+    def _check_result(self, message: str, comm_result: int, dxl_error: int) -> None:
+        """Log and raise if a register access failed or the motor rejected it."""
+        if comm_result != COMM_SUCCESS:
+            error = f"{message}: {self._packetHandler.getTxRxResult(comm_result)}"
+        # Bit 7 is the hardware alert flag: it reports motor state, not a rejected access.
+        elif dxl_error & 0x7F:
+            error = f"{message}: {self._packetHandler.getRxPacketError(dxl_error)}"
+        else:
+            return
+        self._log(f"❌ {error}")
+        raise RuntimeError(error)
 
     def _log(self, msg: str):
         """Log a message."""

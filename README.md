@@ -558,17 +558,23 @@ Set the profile velocity limit for a single motor.
 u2d2.set_velocity_limit(11, 100)
 ```
 
-#### `set_current_limit(motor_id: int, limit_mA: int)`
+#### `set_current_limit(motor_id: int, limit_raw: int)`
 Set the current limit for a single motor.
 
 **Parameters:**
 - `motor_id` (int): Motor ID
-- `limit_mA` (int): Current limit in mA
+- `limit_raw` (int): Current limit in raw register units (model-dependent, e.g. 1 mA on XC330-T, 2.69 mA on XM430-W)
 
 **Example:**
 ```python
-u2d2.set_current_limit(11, 500)  # 500mA limit
+u2d2.set_current_limit(11, 500)  # 500 raw units (1345 mA on an XM430-W)
 ```
+
+#### `get_current_limit(motor_id: int) -> int`
+Return the Current Limit register, in raw register units.
+
+#### `get_model_number(motor_id: int) -> int`
+Return the model number the motor reports (e.g. 1030 for an XM430-W210).
 
 #### `get_position(motor_id: int) -> int`
 Return the current position of a motor.
@@ -772,6 +778,8 @@ The interface provides comprehensive error handling:
 - `❌ Failed to set mode`: Invalid operating mode
 - `❌ Command Position Error`: Position command failed
 - `⚠️ Current saturation detected`: Motor current saturated
+
+Single-motor setters (mode, gains, goals, limits, enabling torque) log these errors and then raise `RuntimeError`, including when a motor rejects a value as out of range. `disable_torque` only logs, so cleanup can reach every motor. Sync writes get no reply from the motors, so a rejected value cannot be detected there.
 
 ## Performance
 
