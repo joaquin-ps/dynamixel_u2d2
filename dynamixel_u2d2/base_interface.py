@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Tuple, Literal, Optional
 
 # Motor mode types for type hints
-MotorMode = Literal['position', 'current']
+MotorMode = Literal['position', 'current', 'current_based_position']
 
 class BaseInterface(ABC):
     """
@@ -66,7 +66,9 @@ class BaseInterface(ABC):
             motor_id: Motor ID
             mode: Operating mode string - one of:
                 - 'position': Position control mode
-                - 'current': Current control mode  
+                - 'current': Current control mode
+                - 'current_based_position': Current-based position control mode (multi-turn,
+                  current capped by Goal Current)
         """
         pass
     

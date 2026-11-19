@@ -95,7 +95,7 @@ class FakeU2D2Interface(BaseInterface):
             current_pos = self._motor_states[motor_id]['position']
             goal_pos = self._goal_positions.get(motor_id, current_pos)
             
-            if self._motor_modes.get(motor_id) == 'position':
+            if self._motor_modes.get(motor_id) in ('position', 'current_based_position'):
                 # Simulate position control
                 error = goal_pos - current_pos
                 if abs(error) > 5:  # Deadband
@@ -128,8 +128,8 @@ class FakeU2D2Interface(BaseInterface):
     
     def set_motor_mode(self, motor_id: int, mode: MotorMode):
         """Set the operating mode of a single motor using string parameter."""
-        if mode not in ['position', 'current']:
-            raise ValueError(f"Invalid mode '{mode}'. Valid modes are: position, current")
+        if mode not in ['position', 'current', 'current_based_position']:
+            raise ValueError(f"Invalid mode '{mode}'. Valid modes are: position, current, current_based_position")
         
         self._motor_modes[motor_id] = mode
         self._verbose_log(f"✅ Fake motor {motor_id} set to {mode} mode")
@@ -282,7 +282,7 @@ class FakeU2D2Interface(BaseInterface):
             state = self._motor_states[motor_id]
             
             if address == ADDR_PRESENT_POSITION:
-                data = struct.pack('<I', int(state['position']))
+                data = struct.pack('<i', int(state['position']))
             elif address == ADDR_PRESENT_VELOCITY:
                 data = struct.pack('<I', int(state['velocity']))
             elif address == ADDR_PRESENT_CURRENT:
@@ -302,7 +302,7 @@ class FakeU2D2Interface(BaseInterface):
             
             # Simulate different write operations based on address
             if address == 116:  # ADDR_GOAL_POSITION
-                position = struct.unpack('<I', data_bytes)[0]
+                position = struct.unpack('<i', data_bytes)[0]
                 self._goal_positions[motor_id] = position
             elif address == 102:  # ADDR_GOAL_CURRENT
                 current = struct.unpack('<H', data_bytes)[0]

@@ -48,6 +48,7 @@ ADDR_PRESENT_POSITION = 132
 # Control modes
 POSITION_CONTROL = 3
 CURRENT_CONTROL_MODE = 0
+CURRENT_BASED_POSITION_CONTROL = 5
 
 # Data lengths for bulk operations
 LEN_GOAL_CURRENT = 2
@@ -207,14 +208,17 @@ class U2D2Interface(BaseInterface):
             motor_id: Motor ID
             mode: Operating mode string - one of:
                 - 'position': Position control mode
-                - 'current': Current control mode  
+                - 'current': Current control mode
+                - 'current_based_position': Current-based position control mode (multi-turn,
+                  current capped by Goal Current)
         """
         mode_map = {
             'position': POSITION_CONTROL,
-            'current': CURRENT_CONTROL_MODE
+            'current': CURRENT_CONTROL_MODE,
+            'current_based_position': CURRENT_BASED_POSITION_CONTROL
         }
-        
-        # TODO: Add support for current_based_position, velocity, extended_position, pwm control modes
+
+        # TODO: Add support for velocity, extended_position, pwm control modes
         
         if mode not in mode_map:
             valid_modes = ', '.join(mode_map.keys())
@@ -384,7 +388,7 @@ class U2D2Interface(BaseInterface):
         
         # Add parameters for each motor
         for motor_id, position in zip(self.motor_ids, positions):
-            position_bytes = struct.pack('<I', int(position))
+            position_bytes = struct.pack('<I', self._to_unsigned_32bit(int(position)))
             if not self._groupSyncWritePosition.addParam(motor_id, position_bytes):
                 raise RuntimeError(f"Failed to add position parameter for motor {motor_id}")
         
@@ -579,7 +583,7 @@ class U2D2Interface(BaseInterface):
         
         write_params = []
         for motor_id, position in zip(motor_ids, positions):
-            position_bytes = struct.pack('<I', int(position))
+            position_bytes = struct.pack('<I', self._to_unsigned_32bit(int(position)))
             write_params.append((motor_id, ADDR_GOAL_POSITION, position_bytes))
         
         self.bulk_write(write_params)
@@ -1098,6 +1102,10 @@ class U2D2Interface(BaseInterface):
     def _to_unsigned_16bit(self, signed_value: int) -> int:
         """Convert a signed integer to unsigned 16-bit for writing to 16-bit registers."""
         return (1 << 16) + signed_value if signed_value < 0 else signed_value
+
+    def _to_unsigned_32bit(self, signed_value: int) -> int:
+        """Convert a signed integer to unsigned 32-bit for writing to 32-bit registers."""
+        return (1 << 32) + signed_value if signed_value < 0 else signed_value
 
     def _check_result(self, message: str, comm_result: int, dxl_error: int) -> None:
         """Log and raise if a register access failed or the motor rejected it."""
